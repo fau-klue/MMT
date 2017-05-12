@@ -1,6 +1,12 @@
 import info.kwarc.mmt.api
+import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.frontend.Run
 import info.kwarc.mmt.api.ontology.{DeclarationTreeExporter, DependencyGraphExporter, JsonGraphExporter, PathGraphExporter}
+import info.kwarc.mmt.api.modules.DeclaredTheory
+import info.kwarc.mmt.api.symbols.PlainInclude
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 /** An abstract class for test methods. Instantiates a controller, sets the mathpath for archives,
   * loads the AlignmentsServer (so you can run a Server without getting an error message.
@@ -83,3 +89,64 @@ abstract class TomTest(prefixes : String*) extends Test(
   true,
   None
 )
+
+abstract class MichaelTest(prefixes : String*) extends Test(
+  "/home/michael/content/",
+  prefixes.toList,
+  "",
+  Some(8080),
+  true,
+  Some("/home/michael/content/test.log")
+)
+
+object RunTom extends TomTest {
+  def run : Unit = Unit
+}
+
+object RunMichael extends MichaelTest {
+  def findRedundancy(theoryPath : MPath) : List[Path] = {
+    val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
+    var ret = ListBuffer[Path]()
+    var subIncludes = mutable.HashSet[MPath]()
+    for (include <- theory.getIncludes) {
+      for (subInclude <- controller.get(include).asInstanceOf[DeclaredTheory].getIncludes) {
+        subIncludes += subInclude
+      }
+    }
+    for (decl <- theory.getPrimitiveDeclarations) {
+      decl match {
+        case PlainInclude(from, _) =>
+          if (subIncludes.contains(from)) {
+            ret+= decl.path
+          }
+        case _ => Unit
+      }
+    }
+    return ret.toList
+  }
+
+  def removeRedundancy(theoryPath : MPath) : Unit = {
+    for (redundancy <- findRedundancy(theoryPath)) {
+      controller.delete(redundancy)
+    }
+  }
+
+  def run : Unit = {
+    var path : MPath = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_all",NamespaceMap.empty)
+    var theory : DeclaredTheory = controller.get(path) match {
+      case t : DeclaredTheory => t
+      case _ => ???
+    }
+    var string : String = controller.presenter.asString(theory)
+    println(string)
+    println("redundant includes:")
+    for (redundancy <- findRedundancy(path)) {
+      println(controller.presenter.asString(controller.get(redundancy)))
+    }
+    removeRedundancy(path)
+    println("redundant includes after cleanup:")
+    for (redundancy <- findRedundancy(path)) {
+      println(controller.presenter.asString(controller.get(redundancy)))
+    }
+  }
+}
