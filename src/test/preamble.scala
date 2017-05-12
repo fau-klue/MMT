@@ -127,7 +127,7 @@ object RunMichael extends MichaelTest {
 
   def removeRedundancy(theoryPath : MPath) : Unit = {
     for (redundancy <- findRedundancy(theoryPath)) {
-      controller.delete(redundancy)
+      //controller.delete(redundancy)
     }
   }
 
