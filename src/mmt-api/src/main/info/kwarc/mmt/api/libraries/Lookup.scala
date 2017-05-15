@@ -1,6 +1,7 @@
 package info.kwarc.mmt.api.libraries
 
 import info.kwarc.mmt.api._
+import info.kwarc.mmt.api.frontend.NotFound
 import info.kwarc.mmt.api.modules._
 import info.kwarc.mmt.api.symbols._
 import info.kwarc.mmt.api.objects._
@@ -28,7 +29,10 @@ abstract class Lookup {self =>
    private type ErrorCont = String => Nothing
    private val defError = (s:String) => throw GetError(s)
    /** for get methods with optional return value */
-   private def optional[E](code: ErrorCont => E): Option[E] = try {Some(code(defError))} catch {case _:GetError => None}
+   private def optional[E](code: ErrorCont => E): Option[E] = try {Some(code(defError))} catch {
+      case _:GetError => None
+      case _:NotFound => None
+   }
 
    /** lookup a path */
    def get(path : Path) : StructuralElement
