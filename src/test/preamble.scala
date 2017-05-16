@@ -4,6 +4,7 @@ import info.kwarc.mmt.api.frontend.Run
 import info.kwarc.mmt.api.ontology.{DeclarationTreeExporter, DependencyGraphExporter, JsonGraphExporter, PathGraphExporter}
 import info.kwarc.mmt.api.modules.DeclaredTheory
 import info.kwarc.mmt.api.symbols.PlainInclude
+import info.kwarc.mmt.got.GraphOptimizationTool
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -104,34 +105,11 @@ object RunTom extends TomTest {
 }
 
 object RunMichael extends MichaelTest {
-  def findRedundancy(theoryPath : MPath) : List[Path] = {
-    val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
-    var ret = ListBuffer[Path]()
-    var subIncludes = mutable.HashSet[MPath]()
-    for (include <- theory.getIncludes) {
-      for (subInclude <- controller.get(include).asInstanceOf[DeclaredTheory].getIncludes) {
-        subIncludes += subInclude
-      }
-    }
-    for (decl <- theory.getPrimitiveDeclarations) {
-      decl match {
-        case PlainInclude(from, _) =>
-          if (subIncludes.contains(from)) {
-            ret+= decl.path
-          }
-        case _ => Unit
-      }
-    }
-    return ret.toList
-  }
-
-  def removeRedundancy(theoryPath : MPath) : Unit = {
-    for (redundancy <- findRedundancy(theoryPath)) {
-      controller.delete(redundancy)
-    }
-  }
 
   def run : Unit = {
+    val test = new GraphOptimizationTool
+    controller.extman.addExtension(test)
+    val got : GraphOptimizationTool = controller.extman.get(classOf[GraphOptimizationTool]).head
     var path : MPath = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_all",NamespaceMap.empty)
     var theory : DeclaredTheory = controller.get(path) match {
       case t : DeclaredTheory => t
@@ -140,12 +118,12 @@ object RunMichael extends MichaelTest {
     var string : String = controller.presenter.asString(theory)
     println(string)
     println("redundant includes:")
-    for (redundancy <- findRedundancy(path)) {
+    for (redundancy <- got.findRedundancy(path)) {
       println(controller.presenter.asString(controller.get(redundancy)))
     }
-    removeRedundancy(path)
+    got.removeRedundancy(path)
     println("redundant includes after cleanup:")
-    for (redundancy <- findRedundancy(path)) {
+    for (redundancy <- got.findRedundancy(path)) {
       println(controller.presenter.asString(controller.get(redundancy)))
     }
   }
