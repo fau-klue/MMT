@@ -2,7 +2,7 @@
 <project name="mmt-tps" default="deploy" basedir=".">
 
     <property name="deploy" value="../../deploy"/>
-	
+
     <!-- The variable scalac.classpath holds all paths needed for the scalac task. -->
     <path id="scalac.classpath">
         <pathelement location="${deploy}/lib/scala-library.jar"/>
@@ -10,7 +10,7 @@
         <pathelement location="${deploy}/lib/scala-reflect.jar"/>
         <pathelement location="${deploy}/lfcatalog/lfcatalog.jar"/>
         <pathelement location="${deploy}/lib/tiscaf.jar"/>
-    	<pathelement location="${deploy}/main/branches/informal/immt-api.jar"/>
+        <pathelement location="${deploy}/main/branches/informal/immt-api.jar"/>
         <pathelement location="bin"/>
     </path>
     <path id="scaladoc.classpath">
@@ -22,7 +22,7 @@
     <taskdef resource="scala/tools/ant/antlib.xml" classpathref="scalac.classpath"/>
 
     <target name="init">
-        <tstamp />
+        <tstamp/>
     </target>
 
     <target name="compile" depends="init">
@@ -36,7 +36,7 @@
         </jar>
     </target>
 
-	<!--
+    <!--
     <target name="scaladoc" depends="init">
         <mkdir dir="${apidocs}"/>
         <scaladoc
@@ -57,6 +57,6 @@
     </target>
 
     <target name="clean">
-        <delete dir="bin" />
+        <delete dir="bin"/>
     </target>
 </project>

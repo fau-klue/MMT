@@ -1,47 +1,47 @@
 <ACTIONS>
-	<ACTION NAME="mmt-dockable-show">
-		<CODE>
-		   wm.addDockableWindow("mmt-dockable");
-		</CODE>
-	</ACTION>
-	<ACTION NAME="mmt-treedockable-show">
-		<CODE>
-		   wm.addDockableWindow("mmt-treedockable");
-		</CODE>
-	</ACTION>
-	<ACTION NAME="mmt-refactordockable-show">
-		<CODE>
-		   wm.addDockableWindow("mmt-refactordockable");
-		</CODE>
-	</ACTION>
-	<ACTION NAME="mmt-graphdockable-show">
-		<CODE>
-		   wm.addDockableWindow("mmt-graphdockable");
-		</CODE>
-	</ACTION>
-	<ACTION NAME="mmt-build">
-		<CODE>
-		   jEdit.getPlugin("info.kwarc.mmt.jedit.MMTPlugin", true).buildActions().buildCurrent(view);
-		</CODE>
-	</ACTION>
-    <ACTION NAME="mmt-buildopen">
+    <ACTION NAME="mmt-dockable-show">
         <CODE>
-           jEdit.getPlugin("info.kwarc.mmt.jedit.MMTPlugin", true).buildActions().buildOpen(view);
+            wm.addDockableWindow("mmt-dockable");
         </CODE>
     </ACTION>
-	<ACTION NAME="mmt-insert-US">
-		<CODE>
-		   info.kwarc.mmt.jedit.Inserter.insertUSorTab(textArea);
-		</CODE>
-	</ACTION>
-	<ACTION NAME="mmt-insert-RS">
-		<CODE>
-		   info.kwarc.mmt.jedit.Inserter.insertRSReturn(textArea);
-		</CODE>
-	</ACTION>
-	<ACTION NAME="mmt-insert-GS">
-		<CODE>
-		   info.kwarc.mmt.jedit.Inserter.insertGSReturn(textArea);
-		</CODE>
-	</ACTION>
+    <ACTION NAME="mmt-treedockable-show">
+        <CODE>
+            wm.addDockableWindow("mmt-treedockable");
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-refactordockable-show">
+        <CODE>
+            wm.addDockableWindow("mmt-refactordockable");
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-graphdockable-show">
+        <CODE>
+            wm.addDockableWindow("mmt-graphdockable");
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-build">
+        <CODE>
+            jEdit.getPlugin("info.kwarc.mmt.jedit.MMTPlugin", true).buildActions().buildCurrent(view);
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-buildopen">
+        <CODE>
+            jEdit.getPlugin("info.kwarc.mmt.jedit.MMTPlugin", true).buildActions().buildOpen(view);
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-insert-US">
+        <CODE>
+            info.kwarc.mmt.jedit.Inserter.insertUSorTab(textArea);
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-insert-RS">
+        <CODE>
+            info.kwarc.mmt.jedit.Inserter.insertRSReturn(textArea);
+        </CODE>
+    </ACTION>
+    <ACTION NAME="mmt-insert-GS">
+        <CODE>
+            info.kwarc.mmt.jedit.Inserter.insertGSReturn(textArea);
+        </CODE>
+    </ACTION>
 </ACTIONS>

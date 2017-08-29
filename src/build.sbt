@@ -66,7 +66,7 @@ def commonSettings(nameStr: String) = Seq(
   resourceDirectory in Compile := baseDirectory.value / "resources",
   unmanagedBase := baseDirectory.value / "jars",
   isSnapshot := true,
-  publishTo := Some(Resolver.file("file", Utils.deploy.toJava/"main")),
+  publishTo := Some(Resolver.file("file", Utils.deploy.toJava / "main")),
   exportJars := true,
   autoAPIMappings := true,
   connectInput in run := true,
@@ -74,11 +74,11 @@ def commonSettings(nameStr: String) = Seq(
   test in assembly := {},
   assemblyMergeStrategy in assembly := {
     case PathList("rootdoc.txt") => MergeStrategy.discard // 2 versions from from scala jars
-	case PathList("META-INF","MANIFEST.MF") => MergeStrategy.discard // should never be merged anyway
+    case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard // should never be merged anyway
     case x => MergeStrategy.singleOrError // work around weird behavior of default strategy, which renames files for no apparent reason
-	/*case x => 
-	  val oldStrategy = (assemblyMergeStrategy in assembly).value
-      oldStrategy(x)*/
+    /*case x =>
+      val oldStrategy = (assemblyMergeStrategy in assembly).value
+        oldStrategy(x)*/
   }
 )
 // settings to be reused for MMT projects -- currently includes everything except tiscaf and lfcatalog
@@ -94,8 +94,8 @@ lazy val tiscaf = (project in file("tiscaf")).
   settings(
     scalaSource in Compile := baseDirectory.value / "src/main/scala",
     libraryDependencies ++= Seq(
-        "net.databinder.dispatch" %% "dispatch-core" % "0.11.3" % "test",
-        "org.slf4j" % "slf4j-simple" % "1.7.12" % "test"
+      "net.databinder.dispatch" %% "dispatch-core" % "0.11.3" % "test",
+      "org.slf4j" % "slf4j-simple" % "1.7.12" % "test"
     ),
     deployFull := deployPackage("lib/tiscaf.jar").value
   )
@@ -104,7 +104,7 @@ lazy val lfcatalog = (project in file("lfcatalog")).
   settings(commonSettings("lfcatalog") ++ oneJarSettings: _*).
   settings(
     unmanagedJars in Compile += Utils.deploy.toJava / "lib" / "tiscaf.jar",
-  	unmanagedJars in Compile += Utils.deploy.toJava / "lib" / "scala-xml.jar",
+    unmanagedJars in Compile += Utils.deploy.toJava / "lib" / "scala-xml.jar",
     deployFull := deployPackage("lfcatalog/lfcatalog.jar").value
   )
 
@@ -144,7 +144,7 @@ lazy val concepts = (project in file("concept-browser")).
   settings(mmtProjectsSettings("concept-browser"): _*).
   settings(
     libraryDependencies ++= Seq(
-        "org.ccil.cowan.tagsoup" % "tagsoup" % "1.2"
+      "org.ccil.cowan.tagsoup" % "tagsoup" % "1.2"
     ),
     unmanagedJars in Compile += Utils.deploy.toJava / "lib" / "tiscaf.jar",
     unmanagedJars in Compile += Utils.deploy.toJava / "lib" / "scala-xml.jar"
@@ -189,7 +189,7 @@ lazy val lfx = (project in file("mmt-lfx")).
   settings(mmtProjectsSettings("mmt-lfx"): _*)
 
 lazy val tps = (project in file("mmt-tps")).
-  dependsOn(api,lf).
+  dependsOn(api, lf).
   settings(mmtProjectsSettings("mmt-tps"): _*)
 
 lazy val imps = (project in file("mmt-imps")).
@@ -257,11 +257,13 @@ lazy val mmt = (project in file("fatjar")).
   settings(
     exportJars := false,
     publish := {},
-    deploy := {assembly in Compile map deployTo("mmt.jar")}.value,
+    deploy := {
+      assembly in Compile map deployTo("mmt.jar")
+    }.value,
     mainClass in assembly := Some("info.kwarc.mmt.api.frontend.Run"),
     assemblyExcludedJars in assembly := {
       val cp = (fullClasspath in assembly).value
-      cp filter {j => jeditJars.contains(j.data.getName)}
+      cp filter { j => jeditJars.contains(j.data.getName) }
     },
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(
       prependShellScript = Some(Seq("#!/bin/bash", """exec /usr/bin/java -Xmx2048m -jar "$0" "$@"""")))
@@ -281,7 +283,7 @@ val install =
   TaskKey[Unit]("install", "copies jedit jars to local jedit installation folder.")
 
 lazy val jedit = (project in file("jEdit-mmt")).
-  dependsOn(api,lf).
+  dependsOn(api, lf).
   settings(commonSettings("jEdit-mmt"): _*).
   settings(
     resourceDirectory in Compile := baseDirectory.value / "src/resources",

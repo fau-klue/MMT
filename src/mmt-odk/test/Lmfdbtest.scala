@@ -9,7 +9,7 @@ import info.kwarc.mmt.odk
   * Created by raupi on 28.12.15.
   */
 object Lmfdbtest {
-  def main (args: Array[String]) {
+  def main(args: Array[String]) {
     println("Start...")
     val controller = new Controller
     """log console
@@ -31,11 +31,11 @@ object Lmfdbtest {
 
 
     val cond = controller.get(Path.parse("http://www.lmfdb.org/schema/elliptic_curves?curves?conductor")).asInstanceOf[FinalConstant]
-    val res1 = controller.simplifier.apply(Apply(cond.toTerm,c.toTerm),Context(p))
-    val res2 = controller.simplifier.apply(Apply(cond.toTerm,d.toTerm),Context(p))
+    val res1 = controller.simplifier.apply(Apply(cond.toTerm, c.toTerm), Context(p))
+    val res2 = controller.simplifier.apply(Apply(cond.toTerm, d.toTerm), Context(p))
     println(res1)
     println(res2)
 
-   // controller.handleLine("build ODK/GAP gap-omdoc gaptypes.json") //gaptypes.json")
+    // controller.handleLine("build ODK/GAP gap-omdoc gaptypes.json") //gaptypes.json")
   }
 }

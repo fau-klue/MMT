@@ -1,4 +1,4 @@
-import java.io.{BufferedWriter,FileWriter}
+import java.io.{BufferedWriter, FileWriter}
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption._
 
@@ -7,10 +7,10 @@ import sbt._
 
 object PostProcessApi {
   /**
-   * pacakges the compiled binaries and copies to deploy 
-   */
+    * pacakges the compiled binaries and copies to deploy
+    */
   def deployPackage(name: String): Def.Initialize[Task[Unit]] =
-    packageBin in Compile map {jar => deployTo(name)(jar)}
+    packageBin in Compile map { jar => deployTo(name)(jar) }
 
   /*
    * copies files to deploy folder
@@ -34,6 +34,7 @@ object PostProcessApi {
       path.delete()
       log.debug("deleted directory: " + path)
     }
+
     if (path.exists && path.isDirectory) delRecursive(path)
     else log.warn("ignoring missing directory: " + path)
   }
@@ -41,6 +42,7 @@ object PostProcessApi {
   def postProcess(log: Logger) = {
     val mmtFolder = File(System.getProperty("user.dir")).getParentFile
     val oldPrefix = "file:/" + mmtFolder.toString
+
     def doFolder(path: File): Unit = {
       log.debug("processing: " + path)
       path.list foreach { e =>
@@ -61,6 +63,7 @@ object PostProcessApi {
         }
       }
     }
+
     val apiDir = mmtFolder / "apidoc"
     if (apiDir.exists && apiDir.isDirectory) doFolder(apiDir)
     else log.error("missing api directory: " + apiDir)

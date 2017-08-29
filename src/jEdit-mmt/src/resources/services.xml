@@ -1,14 +1,14 @@
 <SERVICES>
-   <SERVICE CLASS="sidekick.SideKickParser" NAME="mmt">
-      new info.kwarc.mmt.jedit.MMTSideKick();
-   </SERVICE>
-   <SERVICE CLASS="console.Shell" NAME="mmt">
-      new info.kwarc.mmt.jedit.MMTConsole();
-   </SERVICE>
-   <SERVICE CLASS="console.Shell" NAME="mmt-interpreter">
-      new info.kwarc.mmt.jedit.MMTInterpreter();
-   </SERVICE>
-   <SERVICE CLASS="gatchan.jedit.hyperlinks.HyperlinkSource" NAME="mmt">
-      new info.kwarc.mmt.jedit.MMTHyperlinkSource();
-   </SERVICE>
+    <SERVICE CLASS="sidekick.SideKickParser" NAME="mmt">
+        new info.kwarc.mmt.jedit.MMTSideKick();
+    </SERVICE>
+    <SERVICE CLASS="console.Shell" NAME="mmt">
+        new info.kwarc.mmt.jedit.MMTConsole();
+    </SERVICE>
+    <SERVICE CLASS="console.Shell" NAME="mmt-interpreter">
+        new info.kwarc.mmt.jedit.MMTInterpreter();
+    </SERVICE>
+    <SERVICE CLASS="gatchan.jedit.hyperlinks.HyperlinkSource" NAME="mmt">
+        new info.kwarc.mmt.jedit.MMTHyperlinkSource();
+    </SERVICE>
 </SERVICES>

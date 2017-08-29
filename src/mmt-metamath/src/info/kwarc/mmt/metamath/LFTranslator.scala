@@ -1,7 +1,8 @@
 package info.kwarc.mmt.metamath
 
-import scala.collection.mutable.{HashMap,Stack,TreeSet}
+import java.beans.Statement
 
+import scala.collection.mutable.{HashMap, Stack, TreeSet}
 import org.metamath.scala._
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._

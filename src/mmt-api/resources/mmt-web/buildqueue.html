@@ -20,7 +20,7 @@
         <input type="number" min="1" max="1000" ng-click="stopRepeat(); repeat()" ng-model="refreshRate"/>
     </p>
     <p>
-    queue length {{queue.count}}
+        queue length {{queue.count}}
     </p>
     <p>
         <button ng-click="clear()">clear queue</button>
@@ -37,7 +37,7 @@
             <option value="1">build on info</option>
             <option value="0">force build</option>
             <option value="">force dependencies</option>
-            <option value="-">clean </option>
+            <option value="-">clean</option>
         </select>
         <select ng-model="archives.current" ng-options="option for option in archives.list"></select>
         <button ng-click="make()">make</button>

@@ -1,15 +1,15 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
-   <head>
-      <meta charset="UTF-8" />
-	  
-	  <!-- some css for MMT-produced MathML -->
-      <link rel="stylesheet" type="text/css" href="http://localhost:8080/css/mmt.css"/>
-	  <!-- jQuery (a standard Javascript library) -->
-      <script type="text/javascript" src="http://localhost:8080/script/jquery/jquery.js"></script>
-	  <!-- Javascript API for the MMT server -->
-      <script type="text/javascript" src="http://localhost:8080/script/mmt/mmt-js-api.js"></script>
+<head>
+    <meta charset="UTF-8"/>
 
-      <script type="text/javascript">
+    <!-- some css for MMT-produced MathML -->
+    <link rel="stylesheet" type="text/css" href="http://localhost:8080/css/mmt.css"/>
+    <!-- jQuery (a standard Javascript library) -->
+    <script type="text/javascript" src="http://localhost:8080/script/jquery/jquery.js"></script>
+    <!-- Javascript API for the MMT server -->
+    <script type="text/javascript" src="http://localhost:8080/script/mmt/mmt-js-api.js"></script>
+
+    <script type="text/javascript">
 	     // the Javascript code that is specific to this demo
 
          // the URL of the MMT query server
@@ -37,22 +37,29 @@
 		function mmtToggle(cls) {
 		    $('#outputbox').find('.' + cls).toggleClass(cls+'-hidden');
 		};
-      </script>
-   </head>
 
-   <body>
-     <div>
-      Base Theory: <input id="thyuri" type="text" size="50" value="http://cds.omdoc.org/examples/tutorial?Monoid"><br/>
-      MMT Object:<br/> <textarea id="inputbox" rows="3">∀[x] x ∘ e = x</textarea><br/>
-      <button onclick="mmtParse()">Submit</button>
-     </div>
-     <div id="outputbox"><div></div></div>
-	 
-	 <hr/>
-	 
-	 We can interactivlely change the appearance of MMT-produced MathML.
-	 For example, try <button onclick="mmtToggle('implicit-arg')">this button</button> to show the implicit arguments or <button onclick="mmtToggle('reconstructed')">this button</button> to show inferred types.
-	 
-   </body>
+    </script>
+</head>
+
+<body>
+<div>
+    Base Theory: <input id="thyuri" type="text" size="50" value="http://cds.omdoc.org/examples/tutorial?Monoid"><br/>
+    MMT Object:<br/> <textarea id="inputbox" rows="3">∀[x] x ∘ e = x</textarea><br/>
+    <button onclick="mmtParse()">Submit</button>
+</div>
+<div id="outputbox">
+    <div></div>
+</div>
+
+<hr/>
+
+We can interactivlely change the appearance of MMT-produced MathML.
+For example, try
+<button onclick="mmtToggle('implicit-arg')">this button</button>
+to show the implicit arguments or
+<button onclick="mmtToggle('reconstructed')">this button</button>
+to show inferred types.
+
+</body>
 
 </html>
