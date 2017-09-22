@@ -1,12 +1,13 @@
 import info.kwarc.mmt.api
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.frontend.Run
-import info.kwarc.mmt.api.ontology.{DeclarationTreeExporter, DependencyGraphExporter, JsonGraphExporter, PathGraphExporter}
+import info.kwarc.mmt.api.ontology._
 import info.kwarc.mmt.api.modules.DeclaredTheory
-import info.kwarc.mmt.api.symbols.PlainInclude
+import info.kwarc.mmt.api.objects._
+import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude}
 import info.kwarc.mmt.got.GraphOptimizationTool
 
-import scala.collection.mutable
+import scala.collection.mutable.HashSet
 import scala.collection.mutable.ListBuffer
 
 /** An abstract class for test methods. Instantiates a controller, sets the mathpath for archives,
@@ -106,25 +107,30 @@ object RunTom extends TomTest {
 
 object RunMichael extends MichaelTest {
 
+
   def run : Unit = {
-    val test = new GraphOptimizationTool
-    controller.extman.addExtension(test)
+    controller.extman.addExtension(new GraphOptimizationTool)
     val got : GraphOptimizationTool = controller.extman.get(classOf[GraphOptimizationTool]).head
-    var path : MPath = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_all",NamespaceMap.empty)
+    //var path : MPath = Path.parseM("http://mathhub.info/Teaching/KRMT?FOLSyntax",NamespaceMap.empty)
+    var path : MPath = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_united",NamespaceMap.empty)
     var theory : DeclaredTheory = controller.get(path) match {
       case t : DeclaredTheory => t
       case _ => ???
     }
-    var string : String = controller.presenter.asString(theory)
-    println(string)
-    println("redundant includes:")
-    for (redundancy <- got.findRedundancy(path)) {
-      println(controller.presenter.asString(controller.get(redundancy)))
-    }
-    got.removeRedundancy(path)
-    println("redundant includes after cleanup:")
-    for (redundancy <- got.findRedundancy(path)) {
-      println(controller.presenter.asString(controller.get(redundancy)))
-    }
+    /*
+    path = Path.parseM("http://latin.omdoc.org/category_theory/dfol_based?Comp",NamespaceMap.empty)
+    controller.get(path)
+    path = Path.parseM("http://latin.omdoc.org/math?RingUnit",NamespaceMap.empty)
+    controller.get(path)
+    path = Path.parseM("http://mathhub.info/MitM/smglom/elliptic_curves?isogeny_class",NamespaceMap.empty)
+    controller.get(path)
+    path = Path.parseM("http://latin.omdoc.org/type_theories?LambdaPOmega_",NamespaceMap.empty)
+    controller.get(path)
+
+    path = Path.parseM("http://cds.omdoc.org/examples?MetaLevelInstances",NamespaceMap.empty)
+    controller.get(path)
+    println(got.findReplacements())
+    */
+    println(got.findReplacements())
   }
 }
