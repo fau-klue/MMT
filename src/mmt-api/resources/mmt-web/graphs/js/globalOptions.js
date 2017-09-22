@@ -2,7 +2,7 @@ var THEORY_GRAPH_OPTIONS =
 {
 	physics: 
 	{	
-		
+		enabled: false,
 		stabilization: true,
 		solver: 'barnesHut',			
 		"barnesHut": 
@@ -36,7 +36,7 @@ var THEORY_GRAPH_OPTIONS =
 
 var ARROW_STYLES=
 {
-	"graphinclude":
+	"include":
 	{
 		color:"#cccccc",
 		colorHighlight:"#cccccc",
@@ -45,16 +45,7 @@ var ARROW_STYLES=
 		circle:false,
 		directed: true
 	},
-	"graphtheory":
-	{
-		color:"red",
-		colorHighlight:"red",
-		colorHover:"red",
-		dashes: false,
-		circle:false,
-		directed: true
-	},
-	"graphmeta":
+	"meta":
 	{
 		color:"green",
 		colorHighlight:"green",
@@ -72,7 +63,7 @@ var ARROW_STYLES=
 		circle: false,
 		directed: false
 	},
-	"graphview":
+	"view":
 	{
 		color:"black",
 		colorHighlight:"black",
@@ -81,7 +72,7 @@ var ARROW_STYLES=
 		circle:false,
 		directed: true
 	},
-	"graphstructure":
+	"structure":
 	{
 		color:"#cccccc",
 		colorHighlight:"#cccccc",
@@ -89,5 +80,17 @@ var ARROW_STYLES=
 		dashes: true,
 		circle:false,
 		directed: true
+	}
+};
+
+var NODE_STYLES =
+{
+	"model":
+	{
+		shape: "square"
+	},
+	"theory":
+	{
+		shape: "circle"
 	}
 };

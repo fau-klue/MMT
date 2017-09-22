@@ -122,16 +122,126 @@ class SVGServer extends ServerExtension("svg") with ContextMenuProvider {
 
 /** interprets the body as a QMT [[ontology.Query]] and evaluates it */
 class QueryServer extends ServerExtension("query") {
-  def apply(request: ServerRequest): ServerResponse = {
-    val mmtquery = request.body.asXML
-    log("qmt query: " + mmtquery)
-    val q = Query.parse(mmtquery)(controller.extman.get(classOf[QueryFunctionExtension]), controller.relman)
-    //log("qmt query: " + q.toString)
-    QueryChecker.infer(q)(Context.empty) // type checking
-    val res = controller.evaluator(q)
 
+  /**
+    * Represents an error that occured because the context could not be properly parsed
+    * @param candidate Candidate Path that could not be parsed
+    * @param t Internal exception causing this error
+    */
+  class ContextParsingError(candidate : String, t: Throwable) extends Error(s"Unable to use context: '$candidate' is not a valid MPath. ") {
+    setCausedBy(t)
+  }
+
+  /**
+    * Represents an error that occured because an item in the context could not be retrieved
+    * @param item path to item that could not be retrieved
+    * @param t Internal exception causing this error
+    */
+  class ContextRetrievalError(item: MPath, t: Throwable) extends Error(s"Unable to use context: '${item.toPath}' could not be retrieved. Make sure the path exists. ") {
+    setCausedBy(t)
+  }
+
+  /**
+    * Represents ane error that occured because the query could not be properly parsed.
+    * @param se Internal source error that caused this error
+    */
+  class QuerySourceParsingError(val se: SourceError) extends Error(s"Unable to parse query: Source error in Line ${se.ref.region.start.line}, Column ${se.ref.region.start.column} - Line ${se.ref.region.end.line}, Column ${se.ref.region.end.column}. Make sure your syntax is correct. ") {
+    setCausedBy(se)
+  }
+
+  /**
+    * Represents an error that occured because the query could not be properly translated.
+    * @param t Cause of the error
+    */
+  class QueryTranslationParsingError(val t: Throwable) extends Error(s"Unable to parse query: ${t.getMessage}. Make sure your syntax is correct. ") {
+    setCausedBy(t)
+  }
+
+  def apply(request: ServerRequest): ServerResponse = {
+    request.extensionPathComponents match {
+      case List("text") =>
+        // find the parameters in the body
+        val queryparams = request.body.asJSON match {
+          case jo: JSONObject => jo
+        }
+        // and extract them
+        val query = queryparams("query") match {
+          case Some(js: JSONString) =>
+            js.value
+        }
+        val context = queryparams("context") match {
+          case Some(ja: JSONArray) =>
+            ja.values
+               .map(_.asInstanceOf[JSONString].value)
+               .map(pth => {
+                 val mpath = try {
+                   Path.parseM(pth, NamespaceMap.empty)
+                 } catch {
+                   case pe: ParseError =>
+                     throw new ContextParsingError(pth, pe)
+                 }
+                 try {
+                   controller.get(mpath)
+                   Context(mpath)
+                 } catch {
+                   case ge: GetError =>
+                     throw new ContextRetrievalError(mpath, ge)
+                 }
+               })
+               .reduce(_ ++ _)
+        }
+
+
+        // and parse it
+        log(s"parsing query from text $query $context")
+        val q = try {
+         Query.parse(query, context, controller)
+        } catch {
+          case se: SourceError =>
+            throw new QuerySourceParsingError(se)
+          case err: Exception =>
+            throw new QueryTranslationParsingError(err)
+        }
+
+        // now run the query
+        run(q, request)
+
+
+      // POST to / => parse xml (for backward compatibility)
+      case Nil | List("") if request.method == RequestMethod.Post =>
+        // read xml from the body
+        val queryxml = request.body.asXML
+
+        // and parse it
+        log(s"parsing query from xml $queryxml")
+        val q = Query.parse(queryxml)(controller.extman.get(classOf[QueryFunctionExtension]), controller.relman)
+
+        // now run the query
+        run(q, request)
+
+      // GET to / => show the query page (for humans)
+      case Nil | List("") if request.method == RequestMethod.Get =>
+        resource("qmt.html", request)
+
+      // anything else => Error
+      case _ =>
+          ServerResponse.fromText("Not found", statusCode = ServerResponse.statusCodeNotFound)
+    }
+  }
+
+  def run(query : Query, request: ServerRequest) : ServerResponse = {
+
+    // check that the query is correct
+    // TODO: Throw a proper error if this fails
+    log(s"checking query $query")
+    QueryChecker.infer(query)(Context.empty)
+
+    // run the actual query
+    log(s"running query $query")
+    val res = controller.evaluator(query)
     ServerResponse.fromXML(res.toNode)
   }
+
 }
 
 /** HTTP frontend to the [[Search]] class */
@@ -241,7 +351,7 @@ abstract class TEMASearchServer(format : String) extends ServerExtension("tema-"
 /** interprets the query as an MMT [[frontend.GetAction]] and returns the result */
 class GetActionServer extends ServerExtension("mmt") {
   def apply(request: ServerRequest): ServerResponse = {
-    val action = Action.parseAct(request.queryString, controller.getBase, controller.getHome)
+    val action = Action.parseAct(request.query, controller.getBase, controller.getHome)
     val resp: String = action match {
       case GetAction(a: ToWindow) =>
         a.make(controller)
@@ -338,7 +448,7 @@ class ActionServer extends ServerExtension("action") {
  */
 class SubmitCommentServer extends ServerExtension("submit_comment") {
   def apply(request: ServerRequest): ServerResponse = {
-    val path = Path.parse(request.queryString, controller.getNamespaceMap)
+    val path = Path.parse(request.query, controller.getNamespaceMap)
     var s = request.body.asString
     val date = Calendar.getInstance().getTime.toString
     val end = date.replaceAll("\\s", "")

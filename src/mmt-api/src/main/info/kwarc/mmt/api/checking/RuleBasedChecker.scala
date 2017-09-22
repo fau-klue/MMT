@@ -5,6 +5,7 @@ import objects._
 import symbols._
 import modules._
 import frontend._
+import info.kwarc.mmt.api.Level.Level
 import parser._
 
 /**
@@ -31,7 +32,7 @@ class RuleBasedChecker extends ObjectChecker {
       }
       
       log("checking unit " + cu.component.getOrElse("without URI") + ": " + cu.judgement.present(o => controller.presenter.asString(o)))
-      log("full form of term: " + cu.judgement.wfo.toString)
+      log("full form of term: " + cu.judgement.wfo.toStr(shortURIs = true))
       // if a component is given, we perform side effects on it
       val updateComponent = cu.component map {comp =>
          controller.globalLookup.getComponent(comp) match {
@@ -62,7 +63,9 @@ class RuleBasedChecker extends ObjectChecker {
       if (success) {
         // free variables may remain but their types are solved
         if (pr.free.exists({case IncludeVarDecl(_) => false case _ => true})) {
-          env.errorCont(InvalidUnit(cu, NoHistory, "check succeeded, but free variables remained: " + pr.free.map(_.name).mkString(", ")))
+          env.errorCont(new InvalidUnit(cu, NoHistory, "check succeeded, but free variables remained: " + pr.free.map(_.name).mkString(", ")){
+             override val level: Level = Level.Warning
+          })
         }
       }
       // ** logging and error reporting **
@@ -110,8 +113,6 @@ class RuleBasedChecker extends ObjectChecker {
              }
          }
          tc.analyzed = result // set it even if unchanged so that dirty flag gets cleared
-         if (! success)
-            tc.setAnalyzedDirty // revisit failed declarations
          if (changed) {
             log("changed")
             controller.memory.content.notifyUpdated(comp) //TODO: this could be cleaner if taken care of by the onCheck method

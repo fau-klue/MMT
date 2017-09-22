@@ -52,9 +52,9 @@ abstract class Error(val shortMsg: String) extends java.lang.Exception(shortMsg)
 
   def toHTML: String = HTML.build { h => import h._
     def trace(t: Throwable) {
-      div {
+      div("stacktrace") {
         Stacktrace.asStringList(t).foreach { s =>
-          div {
+          div("stacktraceline") {
             span {
               text {
                 s
@@ -66,9 +66,15 @@ abstract class Error(val shortMsg: String) extends java.lang.Exception(shortMsg)
     }
     div("error") {
       div {
-        text(this.getClass.getName + " of level " + level.toString)
+        span("name") {
+          text(this.getClass.getName)
+        }
+        text(" of level ")
+        span("level") {
+          text(level.toString)
+        }
       }
-      div {
+      div("message") {
         text(shortMsg)
       }
       if (!extraMessage.isEmpty) div {
@@ -79,19 +85,29 @@ abstract class Error(val shortMsg: String) extends java.lang.Exception(shortMsg)
       trace(this)
       causedBy.foreach {e =>
         div {text {"caused by"}}
-        e match {
-           case e: Error => div {
-             literal(e.toHTML)
-           }
-           case e: Throwable => div {
-             text {
-               e.getClass + " : " + e.getMessage
-             }
-             trace(e)
-           }
+        div("cause") {
+          e match {
+            case e: Error => div {
+              literal(e.toHTML)
+            }
+            case e: Throwable => div {
+              text {
+                e.getClass + " : " + e.getMessage
+              }
+              trace(e)
+            }
+          }
         }
       }
     }
+  }
+}
+
+object Error {
+  /** converts java exception to MMT error */
+  def apply(e: Exception): Error = e match {
+    case e: Error => e
+    case e: Exception => GeneralError("unknown error").setCausedBy(e)
   }
 }
 

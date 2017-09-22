@@ -9,6 +9,8 @@ import info.kwarc.mmt.got.GraphOptimizationTool
 
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.ListBuffer
+import info.kwarc.mmt.api.ontology.{DeclarationTreeExporter, DependencyGraphExporter, PathGraphExporter}
+import info.kwarc.mmt.api.web.JSONBasedGraphServer
 
 /** An abstract class for test methods. Instantiates a controller, sets the mathpath for archives,
   * loads the AlignmentsServer (so you can run a Server without getting an error message.
@@ -37,7 +39,6 @@ abstract class Test(archivepath : String,
   if (logfile.isDefined) controller.handleLine("log html " + logfile.get)// /home/raupi/lmh/mmtlog.txt")
   logprefixes foreach (s => controller.handleLine("log+ " + s))
   controller.handleLine("extension info.kwarc.mmt.lf.Plugin")
-  controller.handleLine("extension info.kwarc.mmt.LFX.Plugin")
   controller.handleLine("extension info.kwarc.mmt.odk.Plugin")
   controller.handleLine("extension info.kwarc.mmt.pvs.Plugin")
   // controller.handleLine("extension info.kwarc.mmt.metamath.Plugin")
@@ -53,7 +54,7 @@ abstract class Test(archivepath : String,
 
     controller.extman.addExtension(new DependencyGraphExporter)
     controller.extman.addExtension(new DeclarationTreeExporter)
-    controller.extman.addExtension(new JsonGraphExporter)
+    controller.extman.addExtension(new JSONBasedGraphServer)
     controller.extman.addExtension(new PathGraphExporter)
       doFirst
       if (serverport.isDefined) {

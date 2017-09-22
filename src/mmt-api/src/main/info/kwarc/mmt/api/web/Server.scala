@@ -3,17 +3,14 @@ package info.kwarc.mmt.api.web
 import info.kwarc.mmt.api._
 import frontend._
 import backend._
-import sun.misc.IOUtils
-import utils._
-import tiscaf._
-import tiscaf.let._
+import info.kwarc.mmt.api.utils.StreamUtils
+import info.kwarc.mmt.api.web.ServerResponse.resource
 
-import scala.xml._
-import scala.concurrent._
 import scala.util.parsing.json.JSONFormat
+import scala.xml._
 
 case class ServerError(msg: String) extends Error(msg)
-case class ServerProcessingError(request : ServerRequest, exception : Exception) extends Error(s"unknown error while processing ${request.pathStr}") {
+case class ServerProcessingError(request : ServerRequest, exception : Exception) extends Error(s"unknown error while processing ${request.toStringShort}") {
   setCausedBy(exception)
 }
 
@@ -43,17 +40,14 @@ trait ServerImplementation {
 
 /** An HTTP RESTful server. */
 class Server(val port: Int, val host: String, controller: Controller) extends TiscafServerImplementation with Logger {
-
   val serverName : String = "MMT HTTP Server"
-
   val listenAddress : String = host
   val listenPort : Int = port
 
-  def handleMessage(s: String): Unit = {
+  def handleMessage(s: String) {
     controller.report("tiscaf", s)
   }
-
-  def handleError(e: Throwable): Unit = {
+  def handleError(e: Throwable) {
     logError("error in underlying server: " + e.getClass + ":" + e.getMessage + "\n" + e.getStackTrace.map(_.toString).mkString("", "\n", ""))
   }
 
@@ -62,21 +56,18 @@ class Server(val port: Int, val host: String, controller: Controller) extends Ti
 
   /** handle a single request in a safe way */
   def handleRequest(request: ServerRequest): ServerResponse = {
-
     // log the request that was being made
-    log(s"${RequestMethod.toString(request.method)} /${request.pathStr}")
-
+    log(request.toStringShort)
     // build a response
     val response = try {
+      //log(request.body.asString)
       resolve(request)
     } catch {
       case err: Error => errorResponse(err, request)
       case e : Exception => errorResponse(ServerProcessingError(request, e), request)
     }
-
     // log the response being made
-    log(s"${RequestMethod.toString(request.method)} /${request.pathStr} ${response.statusCode}")
-
+    //log(response.toString)
     //set cors headers and return
     response.setCORSFor(request)
     response
@@ -84,59 +75,54 @@ class Server(val port: Int, val host: String, controller: Controller) extends Ti
 
   /** resolves a specific request -- may throw exceptions */
   private def resolve(request: ServerRequest) : ServerResponse = {
+    // magically requesting a resource via ?do=mmt_resource&path=...
+    val resourcePath = try{
+      if(request.parsedQuery.string("do") == "mmt_resource"){
+        Some(request.parsedQuery.string("path"))
+      } else {
+        None
+      }
+    } catch {
+      case e: Exception => None
+    }
     // check if our request method is OPTIONS, if so, do nothing
-    if(request.method == RequestMethod.Options){
+    if(request.method == RequestMethod.Options) {
       new ServerResponse
-    } else if(request.queryString == "MMT_base_url.js") {
-      handleMMTBase(request)
+    // magic resource requests
+    } else if(resourcePath.isDefined) {
+      handleResource(resourcePath.get, request)
+    // everything else
     } else {
       request.extensionName match {
         case Some("debug") => resolveDebug(request)
         case Some("change") => resolveChange(request)
         case Some("mws") => resolveMWS(request)
         case Some(ext) => resolveExt(ext, request)
-        case None => resolveResource(request)
+        case None =>
+          val path = request.path match {
+            case Nil | List("") => "browse.html"
+            case _ => request.pathString
+          }
+          handleResource(path, request)
       }
     }
   }
 
-  private def handleMMTBase(request : ServerRequest) : ServerResponse = {
-    val content =
-      s"""
-         var MMT_base_url = (function(){
+  private def handleResource(path : String, request: ServerRequest): ServerResponse = {
+    path.stripPrefix("/") match {
+      case "script/mmt/mmt-url.js" =>
+        resource(path, io => {
+          // read it as a string
+          val str = StreamUtils.toString(io, "utf-8")
+          Left(
+            // and place in the request
+            str.format(JSONFormat.quoteString(request.pathString)).getBytes("utf-8")
+          )
+        }, request)
 
-            // function to check if a string ends with another string
-            var endsWith = function(subjectString, searchString) {
-              var lastIndex = subjectString.lastIndexOf(searchString);
-              return lastIndex !== -1 && lastIndex === subjectString.length - searchString.length;
-            };
-
-            // cleaning up a url
-            var cleanURL = function(url){
-              return url.replace(/\\/+$$/, '');
-            }
-
-
-            // the current pathname requested on the server
-            var serverRequestPath = cleanURL("${JSONFormat.quoteString(request.pathStr)}");
-
-            // the actual pathname requested on the server
-            var actualRequestPath = cleanURL(window.location.pathname);
-
-            var basePath;
-
-            // if the path ends with our path
-            if(endsWith(actualRequestPath, serverRequestPath)){
-              basePath = actualRequestPath.substring(0, actualRequestPath.length - serverRequestPath.length);
-            } else {
-              basePath = '/';
-            }
-
-            basePath = window.location.protocol + '//' + window.location.host + basePath;
-            return basePath;
-         })();
-      """
-    ServerResponse(content, "application/javascript")
+      case _ =>
+        resource(path, request)
+    }
   }
 
   /** handles a response to the :change url */
@@ -152,16 +138,16 @@ class Server(val port: Int, val host: String, controller: Controller) extends Ti
   }
 
   /** prints web-server debug info */
-  private def resolveDebug(request : ServerRequest) : ServerResponse = {
+  private def resolveDebug(request: ServerRequest) : ServerResponse = {
     // TODO: Make this a small extension
     val bodyString = List(
       "MMT WebServer DEBUG / TESTING PAGE",
       "==================================",
       "",
       "",
-      s"HTTP Request Method: ${request.method}",
-      s"HTTP Request Path:   ${request.requestPath}",
-      s"HTTP Query String:   ${request.queryString}",
+      s"HTTP Request Method: ${RequestMethod.toString(request.method)}",
+      s"HTTP Request Path:   ${request.pathString}",
+      s"HTTP Query String:   ${request.query}",
       "",
       "HTTP Header fields:",
       request.headers.map(kv => s"${kv._1}: ${kv._2}").mkString("\n")
@@ -175,9 +161,9 @@ class Server(val port: Int, val host: String, controller: Controller) extends Ti
   private def resolveMWS(request : ServerRequest) : ServerResponse = {
     val body = request.body
 
-    val offset = try request.headers("Offset").toInt catch {case _:Throwable => 0}
-    val size = try request.headers("Size").toInt catch {case _:Throwable => 30}
-    val query = request.queryString
+    val offset = try request.headers("Offset").toInt catch {case _:Exception => 0}
+    val size = try request.headers("Size").toInt catch {case _:Exception => 30}
+    val query = request.query
     val qt = controller.extman.get(classOf[QueryTransformer], query).getOrElse(TrivialQueryTransformer)
     val (mwsquery, params) = query match {
       case "mizar" =>
@@ -263,18 +249,7 @@ class Server(val port: Int, val host: String, controller: Controller) extends Ti
       case e: Error =>
         throw e
       case e: Exception =>
-        throw extension.LocalError(s"unknown error while serving ${request.pathStr}").setCausedBy(e)
-    }
-  }
-
-  /** handles a resource request */
-  def resolveResource(request : ServerRequest) : ServerResponse = {
-    // log that we are handling an extension request
-    log(s"handling resource request /${request.pathStr}")
-
-    request.pathComponents match {
-      case Nil | List("") => resource("browse.html", request)
-      case _ => resource(request.pathStr, request)
+        throw extension.LocalError(s"unknown error while serving ${request.pathString}").setCausedBy(e)
     }
   }
 }

@@ -12,6 +12,20 @@ function TheoryGraph()
 	var zoomClusters=[];
 	var clusterPositions=[];
 	var BASE_QUERY_URL="http://mathhub.info/mh/mmt";
+
+	this.hideEdges=function(type, hideEdge)
+	{
+		var edgesToHide=[];
+		for(var i=0;i<originalEdges.length;i++)
+		{
+			console.log(type+""+originalEdges[i]["style"]);
+			if(type==originalEdges[i]["style"] || ("graph"+type)==originalEdges[i]["style"] )
+			{
+				edgesToHide.push({id: originalEdges[i]["id"], hidden: hideEdge});
+			}
+		}
+		edges.update(edgesToHide);
+	}
 	
 	this.downloadCanvasAsImage = function(button)
 	{
@@ -41,6 +55,7 @@ function TheoryGraph()
 		
 		network.once("afterDrawing",function () 
 		{
+			
 			//button.href = network.canvas.frame.canvas.toDataURL();
 			//button.download = "graph.png";
 			var image=network.canvas.frame.canvas.toDataURL("image/png")
@@ -48,6 +63,7 @@ function TheoryGraph()
 			network.setSize(originalWidth,originalHeight);
 			network.redraw();
 			network.fit();
+			setStatusText("");
 		});
 	}
 	
@@ -199,21 +215,64 @@ function TheoryGraph()
 	
 	this.getGraph= function(jsonURL)
 	{
+		setStatusText("Downloading graph...");
 		document.body.style.cursor = 'wait';
+		
+		$.ajaxSetup(
+		{
+            error: function(x, e) 
+			{
+                if (x.status == 0) 
+				{
+					setStatusText('<font color="red">Downloading graph failed (Check Your Network)</font>');
+					document.body.style.cursor = 'auto';
+                } 
+                else if (x.status == 404) 
+				{
+					setStatusText('<font color="red">Downloading graph failed (Requested URL not found)</font>');
+					document.body.style.cursor = 'auto';
+                } 
+				else if (x.status == 500) 
+				{
+					setStatusText('<font color="red">Downloading graph failed (Internel Server Error)</font>');
+                    document.body.style.cursor = 'auto';
+                }  
+				else 
+				{
+					setStatusText('<font color="red">Downloading graph failed (HTTP-Error-Code: '+x.status+')</font>');
+					document.body.style.cursor = 'auto';
+                }
+            }
+        });
+		
 		$.get(jsonURL, drawGraph);
 	}
 
 	function drawGraph(data, status)
 	{
+		if(status!=200 && status!="success")
+		{
+			setStatusText('<font color="red">Downloading graph failed (HTTP-Error-Code: '+status+')</font>');
+			document.body.style.cursor = 'auto';
+			return;
+		}
+	
+		if(typeof data["nodes"] == 'undefined' || data.length<20)
+		{
+			setStatusText('<font color="red">Graph-File is empty</font>');
+			document.body.style.cursor = 'auto';
+			return;
+		}
+		
 		originalNodes=data["nodes"];
 		originalEdges=data["edges"];
-		
+
 		ensureUniqueIds(originalNodes);
 		ensureUniqueIds(originalEdges);
 		
 		postprocessEdges();
 		
-		startRendering();
+		startConstruction();
 	}
 	
 	function postprocessEdges()
@@ -236,6 +295,33 @@ function TheoryGraph()
 
 				originalEdges[i].dashes=styleInfos.dashes;
 				originalEdges[i].color={color:styleInfos.color, highlight:styleInfos.colorHighlight, hover:styleInfos.colorHover};
+			}
+		}
+
+		for(var i=0;i<originalNodes.length;i++)
+		{
+			if(originalNodes[i].style!=undefined && NODE_STYLES[originalNodes[i].style]!=undefined)
+			{
+				var styleInfos=NODE_STYLES[originalNodes[i].style];
+
+				if(styleInfos.shape=="ellipse" || styleInfos.shape=="circle")
+				{
+					if(originalNodes[i].mathml!=undefined)
+						originalNodes[i].shape="circularImage";
+					else
+						originalNodes[i].shape="ellipse";
+				}
+				else if(styleInfos.shape=="square")
+				{
+					if(originalNodes[i].mathml!=undefined)
+						originalNodes[i].shape="Image";
+					else
+						originalNodes[i].shape="square";
+				}
+				else
+				{
+					originalNodes[i].shape=styleInfos.shape;
+				}
 			}
 		}
 	}
@@ -273,14 +359,128 @@ function TheoryGraph()
         }
 	}
 	
+	function estimateExtraSVGHeight(expression)
+	{
+		if(expression.indexOf("frac") == -1 && expression.indexOf("under") == -1  && expression.indexOf("over") == -1)
+		{
+			return 0;
+		}
+		else
+		{
+			return 16;
+		}
+	}
+	
+	function nodeToSVGMath(node)
+	{
+		$('#string_span').html(node["mathml"]);
+		var width=$('#string_span').width();
+		var height=$('#string_span').height();
+		$('#string_span').html("");
+		var svg;
+		
+		if(node["shape"]=="image")
+		{
+			svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+(30*1+width)+'px" height="'+(30*1+height+estimateExtraSVGHeight(node["mathml"]))+'px" preserveAspectRatio="none">' +
+			'<rect x="0" y="0" width="90%" height="90%" fill="#97C2FC"></rect>' +
+			'<foreignObject x="15" y="15" width="100%" height="100%">' +
+			node["mathml"] +
+			'</foreignObject>' +
+			'</svg>';
+		}
+		else
+		{
+			svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+(30*1+width)+'px" height="'+(30*1+height+estimateExtraSVGHeight(node["mathml"]))+'px" preserveAspectRatio="none">' +
+			//' <circle cx="0" cy="0" r="40" fill="light-gray" />' +
+			'<foreignObject x="15" y="13" width="100%" height="100%">' +
+			node["mathml"] +
+			'</foreignObject>' +
+			'</svg>';
+		}
+		node["image"]="data:image/svg+xml;charset=utf-8,"+ encodeURIComponent(svg);
+	}
+	
+	function startConstruction()
+	{
+		setStatusText("Constructing graph...");
+		var processedNodes=0;
+		var nodesCount=0;
+		
+		for(var i=0;i<originalNodes.length;i++)
+		{
+			if(originalNodes[i]["image"]!="" && originalNodes[i]["image"]!=undefined)
+			{
+				nodesCount++;
+			}
+		}
+
+		for(var i=0;i<originalNodes.length;i++)
+		{
+			if(originalNodes[i]["image"]!="" && originalNodes[i]["image"]!=undefined)
+			{
+				function callback(node,data, status)
+				{
+					node["mathml"]=data;
+					nodeToSVGMath(node);
+					processedNodes++;
+					if(processedNodes==nodesCount)
+					{
+						startRendering();
+					}
+				}
+
+				var callback2=callback.bind(null,originalNodes[i]);
+
+				$.get(originalNodes[i]["image"], callback2);
+			}
+			else if(originalNodes[i]["mathml"]!="" && originalNodes[i]["mathml"]!=undefined)
+			{
+				nodeToSVGMath(originalNodes[i]);
+			}
+		}
+		
+		if(nodesCount==0)
+		{
+			startRendering();
+		}
+	}
+	
 	// Called when the Visualization API is loaded.
 	function startRendering() 
 	{
-		if(THEORY_GRAPH_OPTIONS.layout==undefined)
+		setStatusText("Rendering graph...");
+		if(typeof THEORY_GRAPH_OPTIONS.layout === 'undefined' || typeof THEORY_GRAPH_OPTIONS.layout.ownLayoutIdx === 'undefined' || THEORY_GRAPH_OPTIONS.layout.ownLayoutIdx==1)
+		{
+			var opti=new Optimizer(originalNodes,originalEdges);
+			if(originalNodes.length+originalEdges.length>3000)
+			{
+				opti.weaklyHierarchicalLayout(500,document.getElementById('nodeSpacingBox').value);
+			}
+			else if(originalNodes.length+originalEdges.length>2000)
+			{
+				opti.weaklyHierarchicalLayout(700,document.getElementById('nodeSpacingBox').value);
+			}
+			else
+			{
+				opti.weaklyHierarchicalLayout(1000,document.getElementById('nodeSpacingBox').value);
+			}
+		}
+		else if(THEORY_GRAPH_OPTIONS.layout.ownLayoutIdx==2)
 		{
 			var opti=new Optimizer(originalNodes,originalEdges);
 			opti.GenerateRandomSolution();
-			opti.SolveUsingForces(1000);
+			if(originalNodes.length+originalEdges.length>3000)
+			{
+				opti.SolveUsingForces(200,document.getElementById('nodeSpacingBox').value);
+			}
+			else if(originalNodes.length+originalEdges.length>2000)
+			{
+				opti.SolveUsingForces(400,document.getElementById('nodeSpacingBox').value);
+			}
+			else
+			{
+				opti.SolveUsingForces(600,document.getElementById('nodeSpacingBox').value);
+			}
 		}
 		
 		nodes = new vis.DataSet(originalNodes);
@@ -300,11 +500,13 @@ function TheoryGraph()
 		if(THEORY_GRAPH_OPTIONS.physics.enabled==false)
 		{
 			document.body.style.cursor = 'auto';
+			setStatusText('<font color="green">Received '+originalNodes.length+' nodes</font>');
 		}
 		
 		// If the document is clicked somewhere
 		network.on("click", function (e) 
 		{
+			$("#tooltip-container").hide(10);
 			// If the clicked element is not the menu
 			if (!$(e.target).parents(".custom-menu").length > 0) 
 			{
@@ -380,6 +582,9 @@ function TheoryGraph()
 		
 		network.on("oncontext", function (params) 
 		{
+			$("#tooltip-container").hide(10);
+			$(".custom-menu").hide(10);
+			
 			var node=network.getNodeAt({x: params["pointer"]["DOM"]["x"],y: params["pointer"]["DOM"]["y"]});
 			
 			if(node!=undefined)
@@ -391,7 +596,7 @@ function TheoryGraph()
 				// In the right position (the mouse)
 				css({
 					top: params["pointer"]["DOM"]["y"]*1+20 + "px",
-					left: params["pointer"]["DOM"]["x"]*1+16 + "px"
+					left: params["pointer"]["DOM"]["x"]*1+16+document.getElementById("mainbox").offsetLeft + "px",
 				});
 				return;
 			}
@@ -401,14 +606,28 @@ function TheoryGraph()
 			if(edge!=undefined)
 			{
 				network.selectEdges([edge]);
-				// Show contextmenu
-				$(".custom-menu").finish().show(10).
 				
-				// In the right position (the mouse)
-				css({
-					top: params["pointer"]["DOM"]["y"]*1+20 + "px",
-					left: params["pointer"]["DOM"]["x"]*1+16 + "px"
-				});
+				var selectedEdge=undefined;
+				for(var i=0;i<originalEdges.length;i++)
+				{
+					if(originalEdges[i]["id"]==edge)
+					{
+						selectedEdge=originalEdges[i];
+						break;
+					}
+				}
+					
+				if (typeof selectedEdge.clickText != "undefined")
+				{
+					// Show contextmenu
+					$("#tooltip-container").finish().show(10).
+					html(selectedEdge.clickText ).
+					// In the right position (the mouse)
+					css({
+						top: params["pointer"]["DOM"]["y"]*1+20 + "px",
+						left: params["pointer"]["DOM"]["x"]*1+16+document.getElementById("mainbox").offsetLeft + "px"
+					});
+				}
 			}
 			
 		});
@@ -425,6 +644,7 @@ function TheoryGraph()
 			};
 			network.setOptions(options);
 			document.body.style.cursor = 'auto';
+			setStatusText('<font color="green">Received '+originalNodes.length+' nodes</font>');
 		});
 		
 		
