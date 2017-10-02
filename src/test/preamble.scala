@@ -113,12 +113,12 @@ object RunMichael extends MichaelTest {
     controller.extman.addExtension(new GraphOptimizationTool)
     val got : GraphOptimizationTool = controller.extman.get(classOf[GraphOptimizationTool]).head
     //var path : MPath = Path.parseM("http://mathhub.info/Teaching/KRMT?FOLSyntax",NamespaceMap.empty)
+    /*
     var path : MPath = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_united",NamespaceMap.empty)
     var theory : DeclaredTheory = controller.get(path) match {
       case t : DeclaredTheory => t
       case _ => ???
     }
-    /*
     path = Path.parseM("http://latin.omdoc.org/category_theory/dfol_based?Comp",NamespaceMap.empty)
     controller.get(path)
     path = Path.parseM("http://latin.omdoc.org/math?RingUnit",NamespaceMap.empty)
@@ -132,6 +132,6 @@ object RunMichael extends MichaelTest {
     controller.get(path)
     println(got.findReplacements())
     */
-    println(got.findReplacements())
+    println(got.allToXML(got.findReplacements()))
   }
 }

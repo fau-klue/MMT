@@ -10,6 +10,8 @@ import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude}
 
 import scala.collection.mutable
 import scala.collection.mutable.HashSet
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.StringBuilder
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -24,7 +26,7 @@ class GraphOptimizationTool extends Extension {
   }
 
   def includes(theoryPath : MPath,
-               replacementmap : mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]] = mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]]()
+               replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
               ) : List[MPath] = {
     var ret = ListBuffer[MPath]()
     for (include <- directIncludes(theoryPath, replacementmap)) {
@@ -34,7 +36,7 @@ class GraphOptimizationTool extends Extension {
     ret.toList
   }
 
-  def directIncludes (theoryPath : MPath, replacementmap : mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]]) : List[MPath] = {
+  def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : List[MPath] = {
     var ret = ListBuffer[MPath]()
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
     val replacement = replacementmap.get(theoryPath)
@@ -95,7 +97,7 @@ class GraphOptimizationTool extends Extension {
   }
 
   def findRedundantIncludes(theoryPath : MPath,
-                            replacementmap : mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]] = mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]]()
+                            replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
                            ) : List[Path] = {
     var ret = ListBuffer[Path]()
     var subIncludes = HashSet[MPath]()
@@ -113,14 +115,15 @@ class GraphOptimizationTool extends Extension {
   }
 
   def findUnusedIncludeReplacements(theoryPath : MPath,
-                                    replacementmap : mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]] = mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]]()
-                                   ) : mutable.HashMap[Path, HashSet[MPath]] = {
+                                    replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
+                                   ) : HashMap[Path, HashSet[MPath]] = {
     /* replacements will map the replacement suggestions for each optimization candidate
     *  theory inclusions that can be removed entirely will receive an empty set*/
-    var replacements : mutable.HashMap[Path, HashSet[MPath]] = new mutable.HashMap[Path, HashSet[MPath]]
+    var replacements : HashMap[Path, HashSet[MPath]] = new HashMap[Path, HashSet[MPath]]
 
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
     var usedTheories : HashSet[MPath] = FindUsedTheories(theory)
+    if (usedTheories.isEmpty) return replacements
 
     /* Find candidates for optimization.
     *  Every directly included theory from which there is no used symbol can be optimized in at least some way.*/
@@ -165,8 +168,8 @@ class GraphOptimizationTool extends Extension {
     replacements
   }
 
-  def findReplacements() : mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]] = {
-    var replacements = mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]]()
+  def findReplacements() : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
+    var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
 
     /* Sort graph topologically */
     /*set of already sorted theories for quick check*/
@@ -175,31 +178,43 @@ class GraphOptimizationTool extends Extension {
     var orderedTheories = mutable.ListBuffer[MPath]()
     /*set of theories still to be sorted*/
     var unsorted = mutable.HashSet[MPath]()
+    var todo : Int = controller.depstore.getInds(api.ontology.IsTheory).length
     for (theoryPath <- controller.depstore.getInds(api.ontology.IsTheory).asInstanceOf[Iterator[MPath]]) {
+      //println(todo)
+      todo = todo-1
+      /*
       if (controller.getTheory(theoryPath).getIncludesWithoutMeta.isEmpty) {
         /*no dependencies*/
         orderedTheories += theoryPath
         sorted += theoryPath
       }
-      else if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).subsetOf(sorted.asInstanceOf[scala.collection.GenSet[Path]])) {
-        /*dependencies already in sorted*/
-        orderedTheories += theoryPath
-        sorted += theoryPath
-      }
-      else {
-        /*dependencies not yet in sorted*/
-        unsorted += theoryPath
-      }
+      else
+      */
+      try {
+        controller.getTheory(theoryPath)
+        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).subsetOf(sorted.asInstanceOf[scala.collection.GenSet[Path]])) {
+          /*dependencies already in sorted*/
+          orderedTheories += theoryPath
+          sorted += theoryPath
+        }
+        else {
+          /*dependencies not yet in sorted*/
+          unsorted += theoryPath
+        }
+      } catch {case _ : Error => Console.err.println("Error: while sorting " + theoryPath + " (skipped)")}
     }
 
     /* insert rest until sorted */
-    while (!unsorted.equals(HashSet.empty)) {
+    var change = true
+    while (!unsorted.equals(HashSet.empty) && change) {
+      change = false
       for (theoryPath <- unsorted) {
         /*cycle through unsorted until theory is found with all dependencies sorted*/
         if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).subsetOf(sorted.asInstanceOf[scala.collection.GenSet[Path]])) {
           orderedTheories += theoryPath
           unsorted -= theoryPath
           sorted += theoryPath
+          change = true
         }
       }
     }
@@ -208,16 +223,52 @@ class GraphOptimizationTool extends Extension {
 
     /* find replacements */
     for (theoryPath <- sorted) {
-      /* remove unused includes */
-      var replacement = findUnusedIncludeReplacements(theoryPath : MPath, replacements : mutable.HashMap[MPath, mutable.HashMap[Path, HashSet[MPath]]])
-      /* remove redundant includes */
-      for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
-        replacement.put(redundant, HashSet[MPath]())
+      try {
+        /* remove unused includes */
+        var replacement = findUnusedIncludeReplacements(theoryPath : MPath, replacements : HashMap[MPath, HashMap[Path, HashSet[MPath]]])
+        /* remove redundant includes */
+        for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
+          replacement.put(redundant, HashSet[MPath]())
+        }
+        /*add to return map*/
+        replacements.put(theoryPath, replacement)
+      } catch { case _ : Error => {
+          Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
+          replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
+        }
       }
-      /*add to return map*/
-      replacements.put(theoryPath, replacement)
     }
     replacements
   }
 
+  def allToXML(map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
+    var sb : StringBuilder = new StringBuilder()
+    for (theoryPath <- map.keySet) {
+      sb ++= replaceTheoryToXML(theoryPath, map)
+    }
+    return sb.toString
+  }
+
+  def replaceTheoryToXML(theoryPath : MPath, map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
+    var sb : StringBuilder = new StringBuilder()
+    if (map.get(theoryPath).get.keySet.isEmpty) return ""
+    sb ++= "<theory MPath=" ++= theoryPath.toString ++= ">\n"
+    sb ++= replaceInclusionToXML(map.get(theoryPath).get)
+    sb ++= "</theory>\n"
+    return sb.toString
+  }
+
+  def replaceInclusionToXML(map : HashMap[Path, HashSet[MPath]]) : String = {
+    var sb : StringBuilder = new StringBuilder()
+    for (path <- map.keySet) {
+      if (map.get(path).get.isEmpty)
+        sb ++= "\t<removeInclusion Path=" ++= path.toString ++= ">\n"
+      else {
+        sb ++= "\t<replaceInclusion Path=" ++= path.toString ++= ">\n"
+        for (theoryPath <- map.get(path).get) sb ++= "\t\t<replacement MPath=" ++= theoryPath.toString ++= ">\n"
+        sb ++= "\t<replaceInclusion>"
+      }
+    }
+    return sb.toString
+  }
 }
