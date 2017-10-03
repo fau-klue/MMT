@@ -9,22 +9,29 @@ import info.kwarc.mmt.api.ontology.RelationalReader
 import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude}
 
 import scala.collection.mutable
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.StringBuilder
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{HashMap, HashSet, ListBuffer, StringBuilder}
 
 /**
   * Created by michael on 15.05.17.
   */
 class GraphOptimizationTool extends Extension {
 
+  /**
+    * This method is used to make sure the onthologies are loaded when starting the extension
+    * @param args not used here
+    */
   override def start(args: List[String]): Unit = {
     val ret = super.start(args)
     if (controller.extman.get(classOf[RelationalReader]).isEmpty) controller.extman.addExtension(new RelationalReader)
     ret
   }
 
+  /**
+    * This method returns a theory's inclusions, by looking at its direct inclusions and then being applied recursively to the included theories
+    * @param theoryPath This is the path of the theory to be analyzed
+    * @param replacementmap This is a map containing inclusion replacements for each theory
+    * @return This is a list of all inclusions, including indirect
+    */
   def includes(theoryPath : MPath,
                replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
               ) : List[MPath] = {
@@ -36,6 +43,12 @@ class GraphOptimizationTool extends Extension {
     ret.toList
   }
 
+  /**
+    * This method returns a theory's direct inclusions
+    * @param theoryPath This is the path of the theory to be analyzed
+    * @param replacementmap This is a map containing inclusion replacements for each theory
+    * @return This is a list of all direct inclusions
+    */
   def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : List[MPath] = {
     var ret = ListBuffer[MPath]()
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
@@ -55,8 +68,17 @@ class GraphOptimizationTool extends Extension {
     ret.toList
   }
 
+  /**
+    * This object is a traverser and searches a theory for all theories that are used
+    */
   object FindUsedTheories extends Traverser[HashSet[MPath]] {
-    /* traverses the term t and adds all used theories to the state*/
+    /**
+      * Traverses over terms
+      * @param t This is the current subterm
+      * @param con This is the current context
+      * @param state This is the traverser's state
+      * @return
+      */
     def traverse(t: Term)(implicit con: Context, state: State): Term = t match {
       // look for URIs
       case OMID(path) =>
@@ -71,6 +93,11 @@ class GraphOptimizationTool extends Extension {
 
     def apply(t: Term, state: State): Term = apply(t, state, Context())
 
+    /**
+      * Searches a Declaration for its used theories, adds them to state
+      * @param decl This is the Declaration to be searched
+      * @param state This is the traverser's state
+      */
     def apply(decl: Declaration, state: State): Unit = {
       decl match {
         case PlainInclude(from, to) =>
@@ -87,6 +114,11 @@ class GraphOptimizationTool extends Extension {
       }
     }
 
+    /**
+      * Searches a DeclaredTheory for its used theories, adds them to state
+      * @param dt This is the DeclaredTheory to be searched
+      * @return This is a Set of used theories (as MPaths)
+      */
     def apply(dt: DeclaredTheory): State = {
       val state: State = HashSet[MPath]()
       for (decl <- dt.getDeclarations) {
@@ -96,6 +128,12 @@ class GraphOptimizationTool extends Extension {
     }
   }
 
+  /**
+    * This method finds inclusions that are redundant, since they are already part of a different inclusion
+    * @param theoryPath This is the path of the theory to be optimized
+    * @param replacementmap This is a map containing inclusion replacements for each theory
+    * @return This is a list containing the suggested removals for the theory
+    */
   def findRedundantIncludes(theoryPath : MPath,
                             replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
                            ) : List[Path] = {
@@ -114,6 +152,12 @@ class GraphOptimizationTool extends Extension {
     ret.toList
   }
 
+  /**
+    * This method optimizes a theory by reducing its inclusions to those used inside the theory
+    * @param theoryPath This is the path of the theory to be optimized
+    * @param replacementmap This is a map containing inclusion replacements for each theory
+    * @return This is a map containing the suggested replacements for the theory
+    */
   def findUnusedIncludeReplacements(theoryPath : MPath,
                                     replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
                                    ) : HashMap[Path, HashSet[MPath]] = {
@@ -168,7 +212,12 @@ class GraphOptimizationTool extends Extension {
     replacements
   }
 
-  def findReplacements() : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
+  /**
+    * This method optimizes all given theories
+    * @param theories Theories to be optimized as Iterable[MPath]
+    * @return This is a map containing the suggested replacements for all analyzed theories
+    */
+  def findReplacements(theories: Iterable[MPath]) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
 
     /* Sort graph topologically */
@@ -179,7 +228,7 @@ class GraphOptimizationTool extends Extension {
     /*set of theories still to be sorted*/
     var unsorted = mutable.HashSet[MPath]()
     var todo : Int = controller.depstore.getInds(api.ontology.IsTheory).length
-    for (theoryPath <- controller.depstore.getInds(api.ontology.IsTheory).asInstanceOf[Iterator[MPath]]) {
+    for (theoryPath <- theories) {
       //println(todo)
       todo = todo-1
       /*
@@ -241,6 +290,20 @@ class GraphOptimizationTool extends Extension {
     replacements
   }
 
+  /**
+    * This method optimizes all theories inside the onthology
+    * @return This is a map containing the suggested replacements for all analyzed theories
+    */
+  def findReplacements() : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
+    val theories = controller.depstore.getInds(api.ontology.IsTheory).asInstanceOf[Iterator[MPath]].toIterable
+    return findReplacements(theories)
+  }
+
+  /**
+    * This method converts a given mapping as generated by findReplacements to an XML representation
+    * @param map This is a map containing inclusion replacements for each theory
+    * @return XML-String
+    */
   def allToXML(map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
     var sb : StringBuilder = new StringBuilder()
     for (theoryPath <- map.keySet) {
@@ -249,6 +312,12 @@ class GraphOptimizationTool extends Extension {
     return sb.toString
   }
 
+  /**
+    * This method is a subroutine of allToXML
+    * @param theoryPath
+    * @param map This is a map containing inclusion replacements for each theory
+    * @return XML-String, or empty if mapping is
+    */
   def replaceTheoryToXML(theoryPath : MPath, map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
     var sb : StringBuilder = new StringBuilder()
     if (map.get(theoryPath).get.keySet.isEmpty) return ""
@@ -258,6 +327,11 @@ class GraphOptimizationTool extends Extension {
     return sb.toString
   }
 
+  /**
+    * This method converts a given mapping of replacements for a single theory to an XML representation
+    * @param map This is a map containing inclusion replacements for one theory
+    * @return XML-String
+    */
   def replaceInclusionToXML(map : HashMap[Path, HashSet[MPath]]) : String = {
     var sb : StringBuilder = new StringBuilder()
     for (path <- map.keySet) {
@@ -266,7 +340,7 @@ class GraphOptimizationTool extends Extension {
       else {
         sb ++= "\t<replaceInclusion Path=" ++= path.toString ++= ">\n"
         for (theoryPath <- map.get(path).get) sb ++= "\t\t<replacement MPath=" ++= theoryPath.toString ++= ">\n"
-        sb ++= "\t<replaceInclusion>"
+        sb ++= "\t<replaceInclusion>\n"
       }
     }
     return sb.toString
