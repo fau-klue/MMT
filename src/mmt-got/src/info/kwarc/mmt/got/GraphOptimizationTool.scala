@@ -16,6 +16,7 @@ import scala.collection.mutable.{HashMap, HashSet, ListBuffer, StringBuilder}
   */
 class GraphOptimizationTool extends Extension {
   val printErrors = true
+  val predictFuture = true
   val ignoreUnion = true
 
   /**
@@ -99,6 +100,15 @@ class GraphOptimizationTool extends Extension {
       }
     }
     return orderedTheories.toList
+  }
+
+  def transitiveClosure(theories : Iterable[MPath]): HashSet[MPath] = {
+    var closure = HashSet[MPath]()
+    for (theoryPath <- theories) {
+      closure += theoryPath
+      closure ++= controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]]
+    }
+    return closure
   }
 
   /**
@@ -192,7 +202,8 @@ class GraphOptimizationTool extends Extension {
     * @return This is a map containing the suggested replacements for the theory
     */
   def findUnusedIncludeReplacements(theoryPath : MPath,
-                                    replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
+                                    replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]](),
+                                    futureUse : HashMap[MPath, HashSet[MPath]]
                                    ) : HashMap[Path, HashSet[MPath]] = {
     /* replacements will map the replacement suggestions for each optimization candidate
     *  theory inclusions that can be removed entirely will receive an empty set*/
@@ -201,6 +212,7 @@ class GraphOptimizationTool extends Extension {
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
     var usedTheories : HashSet[MPath] = FindUsedTheories(theory)
     if (ignoreUnion && usedTheories.isEmpty) return replacements
+    if (predictFuture) usedTheories ++= futureUse.get(theoryPath).get
 
     /* Find candidates for optimization.
     *  Every directly included theory from which there is no used symbol can be optimized in at least some way.*/
@@ -252,12 +264,32 @@ class GraphOptimizationTool extends Extension {
     */
   def findReplacements(theories: Iterable[MPath]) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
+    var futureUse = HashMap[MPath, HashSet[MPath]]()
+    var missingFuture = HashSet[MPath]()
+    var futureLight = sortTheories(transitiveClosure(theories))
+    for (theoryPath <- futureLight.reverse) {
+      try {
+        futureUse.put(theoryPath, FindUsedTheories(controller.getTheory(theoryPath)))
+      } catch {
+        case _: Error => {
+          if (printErrors) Console.err.println("Error: while looking into Future " + theoryPath + "(skipped)")
+          futureUse.put(theoryPath, HashSet[MPath]())
+          missingFuture += theoryPath
+        }
+      }
+    }
+    for (theoryPath <- theories) {
+      for (futurePath <- controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]]) {
+        if (missingFuture.contains(futurePath)) missingFuture += theoryPath
+        else futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
+      }
+    }
 
     /* find replacements */
     for (theoryPath <- sortTheories(theories)) {
       try {
         /* remove unused includes */
-        var replacement = findUnusedIncludeReplacements(theoryPath , replacements)
+        var replacement = findUnusedIncludeReplacements(theoryPath , replacements, futureUse)
         /* remove redundant includes */
         for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
           replacement.put(redundant, HashSet[MPath]())
