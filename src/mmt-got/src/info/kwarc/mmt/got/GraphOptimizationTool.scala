@@ -15,6 +15,8 @@ import scala.collection.mutable.{HashMap, HashSet, ListBuffer, StringBuilder}
   * Created by michael on 15.05.17.
   */
 class GraphOptimizationTool extends Extension {
+  val printErrors = true
+  val ignoreUnion = true
 
   /**
     * This method is used to make sure the onthologies are loaded when starting the extension
@@ -66,6 +68,37 @@ class GraphOptimizationTool extends Extension {
       }
     }
     ret.toList
+  }
+
+  /**
+    * Sort theories topologically
+    * @param theories This is an Iterable of theories to be sorted
+    * @return This is a sorted List of theories
+    */
+  def sortTheories (theories: Iterable[MPath]) : List[MPath] = {
+    /*set of already sorted theories for quick check*/
+    var sorted = HashSet[MPath]()
+    /*actually sorted list*/
+    var orderedTheories = mutable.ListBuffer[MPath]()
+    /*set of theories still to be sorted*/
+    var unsorted = HashSet[MPath]()
+    unsorted ++= theories
+    var todo : Int = controller.depstore.getInds(api.ontology.IsTheory).length
+    /* insert until sorted */
+    var change = true
+    while (!unsorted.equals(HashSet.empty) && change) {
+      change = false
+      for (theoryPath <- unsorted) {
+        /*cycle through unsorted until theory is found with all dependencies (in optimization scope) sorted*/
+        if (controller.depstore.querySet(theoryPath, api.ontology.Includes).asInstanceOf[HashSet[MPath]].intersect(unsorted).isEmpty) {
+          orderedTheories += theoryPath
+          unsorted -= theoryPath
+          sorted += theoryPath
+          change = true
+        }
+      }
+    }
+    return orderedTheories.toList
   }
 
   /**
@@ -167,7 +200,7 @@ class GraphOptimizationTool extends Extension {
 
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
     var usedTheories : HashSet[MPath] = FindUsedTheories(theory)
-    if (usedTheories.isEmpty) return replacements
+    if (ignoreUnion && usedTheories.isEmpty) return replacements
 
     /* Find candidates for optimization.
     *  Every directly included theory from which there is no used symbol can be optimized in at least some way.*/
@@ -220,61 +253,11 @@ class GraphOptimizationTool extends Extension {
   def findReplacements(theories: Iterable[MPath]) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
 
-    /* Sort graph topologically */
-    /*set of already sorted theories for quick check*/
-    var sorted = mutable.HashSet[MPath]()
-    /*actually sorted list*/
-    var orderedTheories = mutable.ListBuffer[MPath]()
-    /*set of theories still to be sorted*/
-    var unsorted = mutable.HashSet[MPath]()
-    var todo : Int = controller.depstore.getInds(api.ontology.IsTheory).length
-    for (theoryPath <- theories) {
-      //println(todo)
-      todo = todo-1
-      /*
-      if (controller.getTheory(theoryPath).getIncludesWithoutMeta.isEmpty) {
-        /*no dependencies*/
-        orderedTheories += theoryPath
-        sorted += theoryPath
-      }
-      else
-      */
-      try {
-        controller.getTheory(theoryPath)
-        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).intersect(unsorted.asInstanceOf[scala.collection.GenSet[Path]]).isEmpty) {
-          /*dependencies already in sorted*/
-          orderedTheories += theoryPath
-          sorted += theoryPath
-        }
-        else {
-          /*dependencies not yet in sorted*/
-          unsorted += theoryPath
-        }
-      } catch {case _ : Error => Console.err.println("Error: while sorting " + theoryPath + " (skipped)")}
-    }
-
-    /* insert rest until sorted */
-    var change = true
-    while (!unsorted.equals(HashSet.empty) && change) {
-      change = false
-      for (theoryPath <- unsorted) {
-        /*cycle through unsorted until theory is found with all dependencies (in optimization scope) sorted*/
-        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).intersect(unsorted.asInstanceOf[scala.collection.GenSet[Path]]).isEmpty) {
-          orderedTheories += theoryPath
-          unsorted -= theoryPath
-          sorted += theoryPath
-          change = true
-        }
-      }
-    }
-
-    /*this sort is using dependencies that may become outdated, but requirements will only become less strict through replacements*/
-
     /* find replacements */
-    for (theoryPath <- sorted) {
+    for (theoryPath <- sortTheories(theories)) {
       try {
         /* remove unused includes */
-        var replacement = findUnusedIncludeReplacements(theoryPath : MPath, replacements : HashMap[MPath, HashMap[Path, HashSet[MPath]]])
+        var replacement = findUnusedIncludeReplacements(theoryPath , replacements)
         /* remove redundant includes */
         for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
           replacement.put(redundant, HashSet[MPath]())
@@ -282,7 +265,7 @@ class GraphOptimizationTool extends Extension {
         /*add to return map*/
         replacements.put(theoryPath, replacement)
       } catch { case _ : Error => {
-          Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
+          if (printErrors) Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
           replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
         }
       }
