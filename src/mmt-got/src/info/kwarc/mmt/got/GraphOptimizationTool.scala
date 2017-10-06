@@ -241,7 +241,7 @@ class GraphOptimizationTool extends Extension {
       */
       try {
         controller.getTheory(theoryPath)
-        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).subsetOf(sorted.asInstanceOf[scala.collection.GenSet[Path]])) {
+        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).intersect(unsorted.asInstanceOf[scala.collection.GenSet[Path]]).isEmpty) {
           /*dependencies already in sorted*/
           orderedTheories += theoryPath
           sorted += theoryPath
@@ -258,8 +258,8 @@ class GraphOptimizationTool extends Extension {
     while (!unsorted.equals(HashSet.empty) && change) {
       change = false
       for (theoryPath <- unsorted) {
-        /*cycle through unsorted until theory is found with all dependencies sorted*/
-        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).subsetOf(sorted.asInstanceOf[scala.collection.GenSet[Path]])) {
+        /*cycle through unsorted until theory is found with all dependencies (in optimization scope) sorted*/
+        if (controller.depstore.querySet(theoryPath, api.ontology.DependsOn).intersect(unsorted.asInstanceOf[scala.collection.GenSet[Path]]).isEmpty) {
           orderedTheories += theoryPath
           unsorted -= theoryPath
           sorted += theoryPath
