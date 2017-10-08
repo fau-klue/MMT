@@ -55,18 +55,29 @@ class GraphOptimizationTool extends Extension {
   def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : List[MPath] = {
     var ret = ListBuffer[MPath]()
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
-    val replacement = replacementmap.get(theoryPath)
-    for (declaration <- theory.getPrimitiveDeclarations) {
-      declaration match {
-        case PlainInclude(from, _) =>
-          if (!replacement.contains(from)) {
-            ret += from
-          }
-          else {
-            ret ++= replacement.get(from)
-          }
-        case _ => Unit
+    try {
+      val replacement = replacementmap.get(theoryPath).get
+      for (declaration <- theory.getPrimitiveDeclarations) {
+        declaration match {
+          case PlainInclude(from, _) =>
+            if (!replacement.contains(from)) {
+              ret += from
+            }
+            else {
+              ret ++= replacement.get(from).get
+            }
+          case _ => Unit
+        }
       }
+    } catch {
+      case _ : java.util.NoSuchElementException =>
+        for (declaration <- theory.getPrimitiveDeclarations) {
+          declaration match {
+            case PlainInclude(from, _) =>
+              ret += from
+            case _ => Unit
+          }
+        }
     }
     ret.toList
   }
