@@ -301,13 +301,11 @@ class GraphOptimizationTool extends Extension {
     for (theoryPath <- sortTheories(theories)) {
       try {
         /* remove unused includes */
-        var replacement = findUnusedIncludeReplacements(theoryPath , replacements, futureUse)
+        replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath , replacements, futureUse))
         /* remove redundant includes */
         for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
-          replacement.put(redundant, HashSet[MPath]())
+          replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
         }
-        /*add to return map*/
-        replacements.put(theoryPath, replacement)
       } catch { case _ : Error => {
           if (printErrors) Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
           replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
