@@ -255,6 +255,7 @@ class GraphOptimizationTool extends Extension {
 
       var transitiveUsedIncludes = HashSet[MPath]()
       for (usedDirectInclude <- usedDirectIncludes) {
+        transitiveUsedIncludes += usedDirectInclude
         transitiveUsedIncludes ++= controller.get(usedDirectInclude).asInstanceOf[DeclaredTheory].getIncludes
       }
 
@@ -262,7 +263,7 @@ class GraphOptimizationTool extends Extension {
         replacements.put(optimizationCandidate, new HashSet[MPath]())
       }
       else {
-        replacements.put(optimizationCandidate, (new HashSet[MPath]()++=candidateIncludes)--=usedDirectIncludes)
+        replacements.put(optimizationCandidate, (new HashSet[MPath]()++=candidateIncludes)--=transitiveUsedIncludes)
       }
     }
     replacements
