@@ -263,7 +263,13 @@ class GraphOptimizationTool extends Extension {
         replacements.put(optimizationCandidate, new HashSet[MPath]())
       }
       else {
-        replacements.put(optimizationCandidate, (new HashSet[MPath]()++=candidateIncludes)--=transitiveUsedIncludes)
+        var replacementIncludes = (HashSet[MPath]() ++=candidateIncludes)--=transitiveUsedIncludes
+        var transitiveReplacementIncludes = HashSet[MPath]()
+        for (replacementInclude <- replacementIncludes) {
+          transitiveReplacementIncludes ++= controller.get(replacementInclude).asInstanceOf[DeclaredTheory].getIncludes
+        }
+        replacementIncludes --= transitiveReplacementIncludes
+        replacements.put(optimizationCandidate, replacementIncludes)
       }
     }
     replacements
