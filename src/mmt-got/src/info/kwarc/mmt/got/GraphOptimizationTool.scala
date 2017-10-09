@@ -229,7 +229,7 @@ class GraphOptimizationTool extends Extension {
     *  Every directly included theory from which there is no used symbol can be optimized in at least some way.*/
     var optimizationCandidates = HashSet[MPath]()
     optimizationCandidates ++= directIncludes(theoryPath, replacementmap)
-    optimizationCandidates --= FindUsedTheories(theory)
+    optimizationCandidates --= usedTheories
 
     /*Find replacement for every candidate*/
     for (optimizationCandidate <- optimizationCandidates) {
