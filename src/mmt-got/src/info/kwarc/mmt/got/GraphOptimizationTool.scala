@@ -45,13 +45,13 @@ class GraphOptimizationTool extends Extension {
     */
   def includes(theoryPath : MPath,
                replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
-              ) : List[MPath] = {
-    var ret = ListBuffer[MPath]()
+              ) : HashSet[MPath] = {
+    var ret = HashSet[MPath]()
     for (include <- directIncludes(theoryPath, replacementmap)) {
       ret += include
       ret ++= includes(include, replacementmap)
     }
-    ret.toList
+    ret
   }
 
   /**
@@ -60,8 +60,8 @@ class GraphOptimizationTool extends Extension {
     * @param replacementmap This is a map containing inclusion replacements for each theory
     * @return This is a list of all direct inclusions
     */
-  def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : List[MPath] = {
-    var ret = ListBuffer[MPath]()
+  def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : HashSet[MPath] = {
+    var ret = HashSet[MPath]()
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
     try {
       val replacement = replacementmap.get(theoryPath).get
@@ -87,7 +87,7 @@ class GraphOptimizationTool extends Extension {
           }
         }
     }
-    ret.toList
+    ret
   }
 
   /**
@@ -292,8 +292,12 @@ class GraphOptimizationTool extends Extension {
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
     var preserve = HashSet[MPath]()
     var futureUse = HashMap[MPath, HashSet[MPath]]()
-    var missingFuture = HashSet[MPath]()
     var futureLight = sortTheories(transitiveClosure(theories))
+    var theorySet = HashSet[MPath]()
+
+    for (theoryPath <- theorySet) {
+      theorySet += theoryPath
+    }
 
     /*start interactive window*/
     if (interactive) {
@@ -308,24 +312,23 @@ class GraphOptimizationTool extends Extension {
         case _: Error => {
           if (printErrors) Console.err.println("Error: while looking into Future " + theoryPath + "(skipped)")
           futureUse.put(theoryPath, HashSet[MPath]())
-          missingFuture += theoryPath
         }
       }
     }
     for (theoryPath <- theories) {
-      for (futurePath <- controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]]) {
-        if (missingFuture.contains(futurePath)) missingFuture += theoryPath
-        else futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
+      for (futurePath <- controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]]--= theorySet) {
+        futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
       }
     }
 
     /* find replacements */
-    for (theoryPath <- sortTheories(theories)) {
+    for (theoryPath <- sortTheories(theories).reverse) {
       try {
         /* remove unused includes */
         if (!interactive) replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath , replacements, futureUse))
         else {
           replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
+          //TODO untangle suggestions to avoid redundancy
           var suggestions = findUnusedIncludeReplacements(theoryPath, replacements, futureUse)
           for (key <- suggestions.keySet) {
             command = "waiting"
@@ -365,6 +368,12 @@ class GraphOptimizationTool extends Extension {
           replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
         }
       }
+      if (predictFuture)
+        for (include <- includes(theoryPath).intersect(theorySet)) {
+          futureUse.get(include).get
+          futureUse.get(theoryPath).get
+          futureUse.get(include).get ++= futureUse.get(theoryPath).get
+        }
     }
     /*stop interactive window*/
     if (interactive) {
