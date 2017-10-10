@@ -1,5 +1,9 @@
 package info.kwarc.mmt.got
 
+import java.awt.event.{ActionEvent, ActionListener}
+import java.awt.{BorderLayout, ComponentOrientation, Container, Dimension, FlowLayout}
+import javax.swing._
+
 import info.kwarc.mmt.api
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.frontend.Extension
@@ -15,9 +19,13 @@ import scala.collection.mutable.{HashMap, HashSet, ListBuffer, StringBuilder}
   * Created by michael on 15.05.17.
   */
 class GraphOptimizationTool extends Extension {
-  val printErrors = true
-  val predictFuture = true
-  val ignoreUnion = true
+  var printErrors = true      //print Errors on error stream, otherwise not at all
+  var predictFuture = true    //declarations used in future lite code are counted as used by optimization
+  var ignoreUnion = true      //Unions are not optimized if true
+
+  /*variable for interactive mode*/
+  var command : String = ""
+  val dialogue = new Dialogue(this)
 
   /**
     * This method is used to make sure the onthologies are loaded when starting the extension
@@ -280,11 +288,19 @@ class GraphOptimizationTool extends Extension {
     * @param theories Theories to be optimized as Iterable[MPath]
     * @return This is a map containing the suggested replacements for all analyzed theories
     */
-  def findReplacements(theories: Iterable[MPath]) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
+  def findReplacements(theories: Iterable[MPath], interactive : Boolean) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
+    var preserve = HashSet[MPath]()
     var futureUse = HashMap[MPath, HashSet[MPath]]()
     var missingFuture = HashSet[MPath]()
     var futureLight = sortTheories(transitiveClosure(theories))
+
+    /*start interactive window*/
+    if (interactive) {
+      dialogue.showWindow()
+    }
+
+    /*Search future lite code for used theories*/
     for (theoryPath <- futureLight.reverse) {
       try {
         futureUse.put(theoryPath, FindUsedTheories(controller.getTheory(theoryPath)))
@@ -307,16 +323,52 @@ class GraphOptimizationTool extends Extension {
     for (theoryPath <- sortTheories(theories)) {
       try {
         /* remove unused includes */
-        replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath , replacements, futureUse))
+        if (!interactive) replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath , replacements, futureUse))
+        else {
+          replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
+          var suggestions = findUnusedIncludeReplacements(theoryPath, replacements, futureUse)
+          for (key <- suggestions.keySet) {
+            command = "waiting"
+            dialogue.suggest(theoryPath, key, suggestions.get(key).get)
+            while (command == "waiting")
+              synchronized {
+                wait()
+              }
+
+            if (command == "yes") {
+              replacements.get(theoryPath).get.put(key, suggestions.get(key).get)
+              //TODO apply change to source
+            }
+            if (command == "never") preserve += key.asInstanceOf[MPath]
+          }
+        }
         /* remove redundant includes */
         for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
-          replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
+          if (!interactive) replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
+          else {
+            command = "waiting"
+            dialogue.suggest(theoryPath, redundant, HashSet[MPath]())
+            while (command == "waiting")
+              synchronized {
+                wait()
+              }
+
+            if (command == "yes") {
+              replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
+              //TODO apply change to source
+            }
+            if (command == "never") preserve += redundant.asInstanceOf[MPath]
+          }
         }
       } catch { case _ : Error => {
           if (printErrors) Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
           replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
         }
       }
+    }
+    /*stop interactive window*/
+    if (interactive) {
+      dialogue.done()
     }
     replacements
   }
@@ -325,9 +377,9 @@ class GraphOptimizationTool extends Extension {
     * This method optimizes all theories inside the onthology
     * @return This is a map containing the suggested replacements for all analyzed theories
     */
-  def findReplacements() : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
+  def findReplacements(interactive : Boolean = false) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
     val theories = controller.depstore.getInds(api.ontology.IsTheory).asInstanceOf[Iterator[MPath]].toIterable
-    return findReplacements(theories)
+    return findReplacements(theories, interactive)
   }
 
   /**
@@ -375,5 +427,129 @@ class GraphOptimizationTool extends Extension {
       }
     }
     return sb.toString
+  }
+
+  class Dialogue(parent : GraphOptimizationTool) extends JFrame("Style") {
+    val got = parent
+    /*panels*/
+    val suggestionPanel = new JScrollPane()
+    val controls = new JPanel()
+
+    /*text label for displaying suggested changes*/
+    val suggestionBox = new JLabel()
+
+    /*control buttons*/
+    val yesButton = new JButton("yes")
+    yesButton.addActionListener(new ActionListener(){
+      def actionPerformed(e : ActionEvent){
+        got.synchronized {
+          got.command="yes"
+          got.notify()
+        }
+      }
+    })
+    val noButton = new JButton("no")
+    noButton.addActionListener(new ActionListener(){
+      def actionPerformed(e : ActionEvent){
+        got.synchronized {
+          got.command="no"
+          got.notify()
+        }
+      }
+    })
+    val laterButton = new JButton("later")
+    laterButton.addActionListener(new ActionListener(){
+      def actionPerformed(e : ActionEvent){
+        got.synchronized {
+          got.command="later"
+          got.notify()
+        }
+      }
+    })
+    val neverButton = new JButton("never")
+    neverButton.addActionListener(new ActionListener(){
+      def actionPerformed(e : ActionEvent){
+        got.synchronized {
+          got.command="never"
+          got.notify()
+        }
+      }
+    })
+
+    addComponentsToPane(getContentPane())
+    disableButtons()
+
+    def addComponentsToPane(panel : Container) : Unit = {
+      suggestionPanel.setLayout(new ScrollPaneLayout())
+      controls.setLayout(new FlowLayout())
+
+      //add suggestionBox
+      suggestionBox.setPreferredSize(new Dimension(300, 500))
+      suggestionPanel.add(suggestionBox)
+
+      //Add buttons
+      controls.add(yesButton)
+      controls.add(noButton)
+      controls.add(neverButton)
+      controls.add(laterButton)
+
+      //Left to right component orientation is selected by default
+      suggestionPanel.setComponentOrientation(ComponentOrientation.LEFT_TO_RIGHT)
+
+      //TODO add button actions
+
+      //add panels
+      panel.add(suggestionBox, BorderLayout.CENTER)
+      panel.add(controls,BorderLayout.SOUTH)
+    }
+
+    def showWindow() : Unit = {
+      //display the window
+      pack()
+      setVisible(true)
+    }
+
+    def disableButtons() : Unit = {
+      yesButton.setEnabled(false)
+      noButton.setEnabled(false)
+      neverButton.setEnabled(false)
+      laterButton.setEnabled(false)
+    }
+
+
+    def done() : Unit = {
+      disableButtons()
+      setVisible(false)
+    }
+
+    def suggest(in : MPath, theoryPath : Path, replacements : HashSet[MPath]) : Unit = {
+      /*display suggestion*/
+      var sb = new StringBuilder()
+      sb ++= "<html>"
+      sb ++= "in:<br>"
+      sb ++= in.toString ++= "<br>"
+      if (replacements.isEmpty) {
+        sb ++= "remove:<br>" ++= theoryPath.toString
+      }
+      else {
+        sb ++= "replace:<br>" ++= theoryPath.toString
+        sb ++= "<br>"
+        sb ++= "with:"
+        for (replacement <- replacements) {
+          sb ++= "<br>" ++= replacement.toString
+        }
+      }
+      sb ++= "</html>"
+      suggestionBox.setText(sb.toString())
+
+      /*enable buttons*/
+      yesButton.setEnabled(true)
+      noButton.setEnabled(true)
+      neverButton.setEnabled(true)
+      laterButton.setEnabled(true)
+
+      /*resize window*/
+      pack()
+    }
   }
 }
