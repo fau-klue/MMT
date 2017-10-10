@@ -34,7 +34,25 @@ trait CheckingCallback {
    /** type inference, fails by default */
    def inferType(t : Term, covered: Boolean = false)(implicit stack: Stack, history: History): Option[Term] = None
    /** runs code and succeeds by default */
-   def dryRun[A](allowDelay: Boolean, commitOnSucces: Boolean)(code: => A): DryRunResult = Success(code)
+   def dryRun[A](allowDelay: Boolean, commitOnSucces: A => Boolean)(code: => A): DryRunResult = Success(code)
+   /**
+    * tries to check some judgments without delaying constraints
+    * 
+    * if this returns None, the check is inconclusive at this point, and no state changes were applied
+    * if this returns Some(true), all judgments have been derived and all state changes are applied 
+    * if this returns Some(false), no state changes are applied and the caller still has to generate an error message, possibly by calling check(j)
+    */
+   def tryToCheckWithoutDelay(js:Judgement*): Option[Boolean] = {
+     val dr = dryRun(false, (x:Boolean) => x) {
+       js forall {j => check(j)(NoHistory)}
+     }
+     dr match {
+      case Success(s:Boolean) => Some(s)
+      case Success(_) => throw ImplementationError("illegal success value")
+      case WouldFail => Some(false)
+      case _:MightFail => None
+     }
+   }
 
    /** flag an error */
    def error(message: => String)(implicit history: History): Boolean = false
@@ -403,10 +421,13 @@ abstract class TypeBasedSolutionRule(under: List[GlobalName], head: GlobalName) 
 
   def solve(solver : Solver)(tp : Term)(implicit stack: Stack, history: History): Option[Term]
 
-  final def apply(solver: Solver)(tm1: Term, tm2: Term, tp: Term)(implicit stack: Stack, history: History): Option[Boolean] = if (applicable(tp)) {
-    history += "all terms of this type are equal"
-    Some(true)
-  } else None
+  final def apply(solver: Solver)(tm1: Term, tm2: Term, tp: Term)(implicit stack: Stack, history: History): Option[Boolean] = {
+    val ret = solve(solver)(tp)
+    if (ret.isDefined) {
+      history += "all terms of this type are equal"
+      Some(true)
+    } else None
+  }
 
   // def applicable(tm : Term) : Boolean
 }

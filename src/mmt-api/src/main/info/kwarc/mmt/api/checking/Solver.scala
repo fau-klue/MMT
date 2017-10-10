@@ -166,7 +166,7 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
        * 
        * all state changes are rolled back unless evaluation is successful and commitOnSuccess is true
        */
-      def immutably[A](allowDelay: Boolean, commitOnSuccess: Boolean)(a: => A): DryRunResult = {
+      def immutably[A](allowDelay: Boolean, commitOnSuccess: A => Boolean)(a: => A): DryRunResult = {
          val tempState = StateData(solution, newsolutions, dependencies, _delayed, allowDelay)
          pushedStates ::= tempState
          def rollback {
@@ -180,15 +180,16 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
          try {
            val aR = a
            if (tempState.delayedInThisRun.nonEmpty) {
-              activateRepeatedly
+              // activateRepeatedly
               tempState.delayedInThisRun.headOption.foreach {h =>
-                 throw MightFail(h.history)
+                 rollback
+                 return MightFail(h.history)
               }
            }
-           if (!commitOnSuccess) {
-             rollback
-           } else {
+           if (commitOnSuccess(aR)) {
              pushedStates = pushedStates.tail
+           } else {
+             rollback
            }
            Success(aR)
          } catch {
@@ -568,7 +569,7 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
    
    /** applies this Solver to one Judgement
     *  This method can be called multiple times to solve a system of constraints.
- *
+    *
     *  @param j the Judgement
     *  @return if false, j is disproved; if true, j holds relative to all delayed judgements
     *
@@ -576,7 +577,6 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
     *
     *  If this returns false, an error must have been registered.
     */
-
    def apply(j: Judgement): Boolean = {
       val h = new History(Nil)
       val bi = new BranchInfo(h, getCurrentBranch)
@@ -660,7 +660,7 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
                  val j = dj.constraint
                  implicit val history = dj.history
                  implicit val stack = j.stack
-                 def prepare(t: Term, covered: Boolean = false) = {
+                 def prepare(t: Obj, covered: Boolean = false): t.ThisType = {
                     substituteSolved(t, covered)
                  }
                  //logState() // noticeably slows down type-checking, only use for debugging
@@ -680,6 +680,10 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
                          check(Inhabitable(prepareS(stack), prepare(tp)))
                       case Inhabited(stack, tp) =>
                          check(Inhabited(prepareS(stack), prepare(tp, true)))
+                      case IsContext(stack, cont) =>
+                         check(IsContext(prepareS(stack), prepare(cont)))
+                      case EqualityContext(stack, c1, c2, a) =>
+                         check(EqualityContext(prepareS(stack), prepare(c1, true), prepare(c2, true), a))
                    }
                  }
               case di: DelayedInference =>
@@ -745,28 +749,8 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
     * @param a the expression
     * @param commitOnSuccess do not roll back state changes if successful
     */
-   override def dryRun[A](allowDelay: Boolean, commitOnSuccess: Boolean)(a: => A): DryRunResult = immutably(allowDelay, commitOnSuccess)(a)
+   override def dryRun[A](allowDelay: Boolean, commitOnSuccess: A => Boolean)(a: => A): DryRunResult = immutably(allowDelay, commitOnSuccess)(a)
    
-   /**
-    * tries to check some judgments without delaying constraints
-    * 
-    * if this returns None, the check is inconclusive at this point, and no state changes were applied
-    * if this returns Some(true), all judgments have been derived and all state changes are applied 
-    * if this returns Some(false), no state changes are applied and the caller still has to generate an error message, possibly by calling check(j)
-    */
-   def tryToCheckWithoutDelay(js:Judgement*): Option[Boolean] = {
-     val dr = dryRun(false, true) {
-       js forall {j => check(j)(NoHistory)}
-     }
-     dr match {
-      case Success(s:Boolean) => Some(s)
-      case Success(_) => throw ImplementationError("illegal success value")
-      case WouldFail => Some(false)
-      case _:MightFail => None
-     }
-   }
-
-
    /**
     * performs a type inference and calls a continuation function on the inferred type
     *
@@ -1025,12 +1009,14 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
       // better: use an expansion algorithm that stops expanding if it is know that no rule will become applicable
 
      // first see if equality can be established
+     log("Check if obviously equal: " + presentObj(j.tp1) + " and " + presentObj(j.tp2))
      val CC = makeCongClos
      val obviouslyEqual = tryToCheckWithoutDelay(CC(Equality(j.stack,j.tp1,j.tp2,None)) :_*) contains true
      if (obviouslyEqual) {
+       log("Obviously equal: " + presentObj(j.tp1) + " and " + presentObj(j.tp2))
        return true
      }
-
+     history += "not obviously equal, trying subtyping"
      if (subtypingRules.nonEmpty) {
         implicit val stack = j.stack
         var activerules = subtypingRules
@@ -1062,6 +1048,7 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
       }
       // otherwise, we default to checking equality
       // in the absence of subtyping rules, this is the needed behavior anyway
+      history += "can't establish subtype relation, falling back to checking equality"
       check(Equality(j.stack, j.tp1, j.tp2, None))
    }
 
@@ -1413,7 +1400,7 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
     * unsafe via ObjectSimplifier
     * this subsumes substituting for solved unknowns before simplifier expands defined variables
     */
-   def simplify(t : Obj)(implicit stack: Stack, history: History) = {
+   def simplify(t : Obj)(implicit stack: Stack, history: History): t.ThisType = {
       val tS = controller.simplifier(t, constantContext ++ solution ++ stack.context, rules)
       if (tS != t)
          history += ("simplified: " + presentObj(t) + " ~~> " + presentObj(tS))
@@ -1423,12 +1410,12 @@ class Solver(val controller: Controller, checkingUnit: CheckingUnit, val rules: 
    /** substitutes solved unknowns, then possibly calls simplification
     *  (simplification alone does not necessary substitute solved unknowns because simpleness is cached)
     */
-   def substituteSolved(t: Term, covered: Boolean)(implicit stack: Stack, history: History): Term = {
+   def substituteSolved(t: Obj, covered: Boolean)(implicit stack: Stack, history: History): t.ThisType = {
       val subs = solution.toPartialSubstitution
       val tS = t ^^ subs
-      if (covered) simplify(tS) else tS
+      val tSS = if (covered) simplify(tS) else tS
+      tSS.asInstanceOf[t.ThisType] // always succeeds but Scala doesn't know that
    }
-
 
    /** simplifies safely one step along each branches, well-formedness is preserved+reflected */
    //TODO merge with limitedSimplify; offer simplification strategies
