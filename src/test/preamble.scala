@@ -1,16 +1,9 @@
 import info.kwarc.mmt.api
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.frontend.Run
-import info.kwarc.mmt.api.ontology._
-import info.kwarc.mmt.api.modules.DeclaredTheory
-import info.kwarc.mmt.api.objects._
-import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude}
-import info.kwarc.mmt.got.GraphOptimizationTool
-
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.ListBuffer
 import info.kwarc.mmt.api.ontology.{DeclarationTreeExporter, DependencyGraphExporter, PathGraphExporter}
 import info.kwarc.mmt.api.web.JSONBasedGraphServer
+import info.kwarc.mmt.got.GraphOptimizationTool
 
 /** An abstract class for test methods. Instantiates a controller, sets the mathpath for archives,
   * loads the AlignmentsServer (so you can run a Server without getting an error message.
@@ -132,6 +125,7 @@ object RunMichael extends MichaelTest {
     controller.get(path)
     println(got.findReplacements())
     */
-    println(got.allToXML(got.findReplacements()))
+    val list = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_other",NamespaceMap.empty) :: Path.parseM("http://mydomain.org/myarchive/mmt-example?test_all",NamespaceMap.empty) :: Path.parseM("http://mydomain.org/myarchive/mmt-example?test_future",NamespaceMap.empty) :: Nil
+    println(got.allToXML(got.findReplacements(list, true)))
   }
 }
