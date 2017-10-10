@@ -125,7 +125,7 @@ object RunMichael extends MichaelTest {
     controller.get(path)
     println(got.findReplacements())
     */
-    val list = Path.parseM("http://mydomain.org/myarchive/mmt-example?test_other",NamespaceMap.empty) :: Path.parseM("http://mydomain.org/myarchive/mmt-example?test_all",NamespaceMap.empty) :: Path.parseM("http://mydomain.org/myarchive/mmt-example?test_future",NamespaceMap.empty) :: Nil
+    val list = Path.parseM("http://mydomain.org/testarchive/mmt-example?test_other",NamespaceMap.empty) :: Path.parseM("http://mydomain.org/testarchive/mmt-example?test_all",NamespaceMap.empty) :: Path.parseM("http://mydomain.org/testarchive/mmt-example?test_future",NamespaceMap.empty) :: Nil
     println(got.allToXML(got.findReplacements(list, true)))
   }
 }

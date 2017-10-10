@@ -484,8 +484,8 @@ class GraphOptimizationTool extends Extension {
       controls.setLayout(new FlowLayout())
 
       //add suggestionBox
-      suggestionBox.setPreferredSize(new Dimension(300, 500))
-      suggestionPanel.add(suggestionBox)
+      suggestionPanel.setPreferredSize(new Dimension(500, 500))
+      suggestionPanel.setViewportView(suggestionBox)
 
       //Add buttons
       controls.add(yesButton)
@@ -494,12 +494,12 @@ class GraphOptimizationTool extends Extension {
       controls.add(laterButton)
 
       //Left to right component orientation is selected by default
-      suggestionPanel.setComponentOrientation(ComponentOrientation.LEFT_TO_RIGHT)
+      controls.setComponentOrientation(ComponentOrientation.LEFT_TO_RIGHT)
 
       //TODO add button actions
 
       //add panels
-      panel.add(suggestionBox, BorderLayout.CENTER)
+      panel.add(suggestionPanel, BorderLayout.CENTER)
       panel.add(controls,BorderLayout.SOUTH)
     }
 
