@@ -290,12 +290,13 @@ class GraphOptimizationTool extends Extension {
     */
   def findReplacements(theories: Iterable[MPath], interactive : Boolean) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
-    var preserve = HashSet[MPath]()
+    var never = HashSet[Path]()
+    var no = HashMap[MPath, HashSet[Path]]()
     var futureUse = HashMap[MPath, HashSet[MPath]]()
     var futureLight = sortTheories(transitiveClosure(theories))
     var theorySet = HashSet[MPath]()
 
-    for (theoryPath <- theorySet) {
+    for (theoryPath <- theories) {
       theorySet += theoryPath
     }
 
@@ -303,77 +304,97 @@ class GraphOptimizationTool extends Extension {
     if (interactive) {
       dialogue.showWindow()
     }
-
-    /*Search future lite code for used theories*/
-    for (theoryPath <- futureLight.reverse) {
-      try {
-        futureUse.put(theoryPath, FindUsedTheories(controller.getTheory(theoryPath)))
-      } catch {
-        case _: Error => {
-          if (printErrors) Console.err.println("Error: while looking into Future " + theoryPath + "(skipped)")
-          futureUse.put(theoryPath, HashSet[MPath]())
-        }
-      }
-    }
-    for (theoryPath <- theories) {
-      for (futurePath <- controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]]--= theorySet) {
-        futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
-      }
-    }
-
-    /* find replacements */
-    for (theoryPath <- sortTheories(theories).reverse) {
-      try {
-        /* remove unused includes */
-        if (!interactive) replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath , replacements, futureUse))
-        else {
-          replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
-          //TODO untangle suggestions to avoid redundancy
-          var suggestions = findUnusedIncludeReplacements(theoryPath, replacements, futureUse)
-          for (key <- suggestions.keySet) {
-            command = "waiting"
-            dialogue.suggest(theoryPath, key, suggestions.get(key).get)
-            while (command == "waiting")
-              synchronized {
-                wait()
-              }
-
-            if (command == "yes") {
-              replacements.get(theoryPath).get.put(key, suggestions.get(key).get)
-              //TODO apply change to source
-            }
-            if (command == "never") preserve += key.asInstanceOf[MPath]
+    var changed = true
+    while (changed) {
+      changed = false
+      /*Search future lite code for used theories*/
+      for (theoryPath <- futureLight.reverse) {
+        try {
+          futureUse.put(theoryPath, FindUsedTheories(controller.getTheory(theoryPath)))
+        } catch {
+          case _: Error => {
+            if (printErrors) Console.err.println("Error: while looking into Future " + theoryPath + "(skipped)")
+            futureUse.put(theoryPath, HashSet[MPath]())
           }
         }
-        /* remove redundant includes */
-        for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
-          if (!interactive) replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
+      }
+      for (theoryPath <- theories) {
+        for (futurePath <- controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]] --= theorySet) {
+          futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
+        }
+      }
+
+      /* find replacements */
+      for (theoryPath <- sortTheories(theories).reverse) {
+        try {
+          /* remove unused includes */
+          if (!interactive) replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath, replacements, futureUse))
           else {
-            command = "waiting"
-            dialogue.suggest(theoryPath, redundant, HashSet[MPath]())
-            while (command == "waiting")
-              synchronized {
-                wait()
-              }
+            if (replacements.get(theoryPath).isEmpty) replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
+            //TODO untangle suggestions to avoid redundancy
+            var suggestions = findUnusedIncludeReplacements(theoryPath, replacements, futureUse)
+            for (key <- suggestions.keySet) {
+              if (!never.contains(key) && !(!no.get(theoryPath).isEmpty && no.get(theoryPath).get.contains(key))) {
+                command = "waiting"
+                dialogue.suggest(theoryPath, key, suggestions.get(key).get)
+                while (command == "waiting")
+                  synchronized {
+                    wait()
+                  }
 
-            if (command == "yes") {
-              replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
-              //TODO apply change to source
+                if (command == "yes") {
+                  replacements.get(theoryPath).get.put(key, suggestions.get(key).get)
+                  changed = true
+                  //TODO apply change to source
+                }
+                if (command == "no") {
+                  if (no.get(theoryPath).isEmpty) no.put(theoryPath, HashSet[Path]())
+                  no.get(theoryPath).get.add(key)
+                }
+                if (command == "never") never += key
+                if (command == "later") changed=true //well not really, but it still could
+              }
             }
-            if (command == "never") preserve += redundant.asInstanceOf[MPath]
+          }
+          /* remove redundant includes */
+          for (redundant <- findRedundantIncludes(theoryPath, replacements)) {
+            if (!interactive) replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
+            else {
+              if (!never.contains(redundant) && !(!no.get(theoryPath).isEmpty && no.get(theoryPath).get.contains(redundant))) {
+                command = "waiting"
+                dialogue.suggest(theoryPath, redundant, HashSet[MPath]())
+                while (command == "waiting")
+                  synchronized {
+                    wait()
+                  }
+
+                if (command == "yes") {
+                  replacements.get(theoryPath).get.put(redundant, HashSet[MPath]())
+                  changed = true
+                  //TODO apply change to source
+                }
+                if (command == "no") {
+                  if (no.get(theoryPath).isEmpty) no.put(theoryPath, HashSet[Path]())
+                  no.get(theoryPath).get.add(redundant)
+                }
+                if (command == "never") never += redundant.asInstanceOf[MPath]
+                if (command == "later") changed=true //well not really, but it still could
+              }
+            }
+          }
+        } catch {
+          case _: Error => {
+            if (printErrors) Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
+            replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
           }
         }
-      } catch { case _ : Error => {
-          if (printErrors) Console.err.println("Error: while optimizing " + theoryPath + " (skipped)")
-          replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
-        }
+        if (predictFuture)
+          for (include <- includes(theoryPath).intersect(theorySet)) {
+            futureUse.get(include).get
+            futureUse.get(theoryPath).get
+            futureUse.get(include).get ++= futureUse.get(theoryPath).get
+          }
       }
-      if (predictFuture)
-        for (include <- includes(theoryPath).intersect(theorySet)) {
-          futureUse.get(include).get
-          futureUse.get(theoryPath).get
-          futureUse.get(include).get ++= futureUse.get(theoryPath).get
-        }
     }
     /*stop interactive window*/
     if (interactive) {
