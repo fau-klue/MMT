@@ -3,8 +3,8 @@ package info.kwarc.mmt.mizar.translator
 //TODO package name does not match directory structure
 
 import info.kwarc.mmt.api._
-import archives.BuildResult
 import documents._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.mizar.objects._
 import info.kwarc.mmt.mizar.reader._
 import info.kwarc.mmt.mizar.mmtwrappers._
@@ -89,7 +89,7 @@ class MizarCompiler extends archives.Importer {
 
   }
   
-  def importDocument(bf: archives.BuildTask, seCont: documents.Document => Unit): BuildResult = {
+  def importDocument(bf: BuildTask, seCont: documents.Document => Unit): BuildResult = {
     val mmlBase = getBase(bf.inFile)
     val aid = getAid(bf.inFile)
     translateArticle(mmlBase, aid.toUpperCase(), bf.narrationDPath.^!)

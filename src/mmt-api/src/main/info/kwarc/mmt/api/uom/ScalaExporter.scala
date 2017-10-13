@@ -3,6 +3,7 @@ package info.kwarc.mmt.api.uom
 import info.kwarc.mmt.api._
 import archives._
 import documents._
+import info.kwarc.mmt.api.building.BuildTask
 import modules._
 import notations._
 import symbols._

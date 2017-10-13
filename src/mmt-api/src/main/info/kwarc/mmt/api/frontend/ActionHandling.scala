@@ -8,6 +8,7 @@ import checking._
 import web._
 import parser._
 import backend._
+import info.kwarc.mmt.api.building.{BuildTarget, TraversingBuildTarget}
 import ontology._
 import objects._
 

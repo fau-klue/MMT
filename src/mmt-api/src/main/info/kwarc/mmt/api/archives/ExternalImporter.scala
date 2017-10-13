@@ -1,6 +1,7 @@
 package info.kwarc.mmt.api.archives
 
 import info.kwarc.mmt.api._
+import info.kwarc.mmt.api.building._
 import utils._
 import parser._
 

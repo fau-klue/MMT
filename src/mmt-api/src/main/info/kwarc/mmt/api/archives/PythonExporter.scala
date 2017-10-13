@@ -4,6 +4,7 @@ import info.kwarc.mmt.api._
 import modules._
 import symbols._
 import documents._
+import info.kwarc.mmt.api.building.BuildTask
 
 class PythonExporter extends Exporter {
    val outDim = Dim("export", "python")

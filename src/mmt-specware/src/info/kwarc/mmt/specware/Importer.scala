@@ -4,6 +4,7 @@ import errors._
 import info.kwarc.mmt.api._
 import archives._
 import documents._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import parser._
 import utils._
 

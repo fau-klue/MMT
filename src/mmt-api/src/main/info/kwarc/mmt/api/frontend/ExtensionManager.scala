@@ -4,6 +4,7 @@ import info.kwarc.mmt.api._
 import archives._
 import backend._
 import checking._
+import info.kwarc.mmt.api.building.{BuildTarget, TrivialBuildManager}
 import libraries._
 import opaque._
 import parser._

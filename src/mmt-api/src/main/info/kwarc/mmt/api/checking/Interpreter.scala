@@ -4,6 +4,7 @@ import info.kwarc.mmt.api._
 import archives._
 import documents._
 import frontend.Controller
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.api.modules.{DeclaredTheory, DeclaredView, Theory}
 import ontology.{Declares, RelationExp}
 import parser._
@@ -47,23 +48,7 @@ abstract class Interpreter extends Importer {
        case e: Error => throw LocalError("no document produced")
     }
     index(doc)
-    val provided = doc.getModulesResolved(controller.globalLookup).map {m =>
-       m.path
-    } map LogicalDependency
-    val used = doc.getModulesResolved(controller.globalLookup).flatMap {
-      case th : DeclaredTheory => th.meta.toList ::: th.getIncludes ::: th.getNamedStructures.map(_.from.toMPath)
-      case v : DeclaredView => v.from.toMPath :: v.to.toMPath :: v.getIncludes
-    }.distinct.map(LogicalDependency) // TODO this is an ugly hack and should be replaced by a precise method. Requires some planning though; in the
-      // TODO meantime it's better than nothing
-    val missing = used.collect {
-        case ld if Try(controller.getO(ld.mpath)).toOption.flatten.isEmpty => ld
-      }
-    if (missing.nonEmpty) {
-      MissingDependency(missing,provided,used)
-    } else if (bf.errorCont.hasNewErrors)
-      BuildFailure(used, provided)
-    else
-      BuildSuccess(used, provided)
+    BuildResult.fromImportedDocument(doc,bf.errorCont.noErrorsAdded)(controller)
   }
 }
 

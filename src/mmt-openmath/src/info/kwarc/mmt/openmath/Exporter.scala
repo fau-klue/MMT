@@ -1,10 +1,9 @@
 package info.kwarc.mmt.openmath
 
 import info.kwarc.mmt.api._
-import info.kwarc.mmt.api.archives.BuildTask
-
 import objects._
 import documents._
+import info.kwarc.mmt.api.building.BuildTask
 import presentation._
 
 object OpenMath {

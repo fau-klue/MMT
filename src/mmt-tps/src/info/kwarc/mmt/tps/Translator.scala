@@ -9,6 +9,7 @@ import documents._
 import modules._
 import utils._
 import archives._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.api.checking.{Checker, CheckingEnvironment, RelationHandler}
 import info.kwarc.mmt.api.objects.{Context, Term, VarDecl}
 import info.kwarc.mmt.api.opaque.{OpaqueText, StringFragment}

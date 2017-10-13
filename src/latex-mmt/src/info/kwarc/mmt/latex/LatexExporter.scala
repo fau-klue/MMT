@@ -7,8 +7,8 @@ import modules._
 import notations._
 import objects._
 import symbols._
-
 import LatexExporter._
+import info.kwarc.mmt.api.building.BuildTask
 
 /** an unfinished exporter that generates latex presentations of modules */
 class LatexExporter extends Exporter {

@@ -8,6 +8,7 @@ import java.util.regex.PatternSyntaxException
 
 import info.kwarc.mmt.api.Level._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building._
 import info.kwarc.mmt.api.utils.AnaArgs._
 import info.kwarc.mmt.api.utils.{EmptyPath, File, FilePath, _}
 import info.kwarc.mmt.api.{ExtensionError, Level}

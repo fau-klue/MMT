@@ -1,16 +1,15 @@
 package info.kwarc.mmt.focalize
 
 import syntax._
-
 import info.kwarc.mmt.api._
 import frontend._
 import documents._
 import archives._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import modules._
 import symbols._
 import objects._
 import utils._
-
 import info.kwarc.mmt.lf._
 
 class FocalizeImporter extends Importer {
@@ -32,7 +31,7 @@ class FocalizeImporter extends Importer {
       val t = new Translator(this, controller, bf)
       val mmtdoc = t.applyDoc(focdoc)
       index(mmtdoc)
-      BuildResult.fromImportedDocument(mmtdoc)
+      BuildResult.fromImportedDocument(mmtdoc,bf.errorCont.noErrorsAdded)(controller)
    }
 }
 

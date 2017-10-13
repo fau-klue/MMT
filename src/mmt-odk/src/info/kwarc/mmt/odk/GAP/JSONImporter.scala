@@ -1,6 +1,7 @@
 package info.kwarc.mmt.odk.GAP
 
-import info.kwarc.mmt.api.archives.{BuildResult, BuildTask, Importer, RedirectableDimension}
+import info.kwarc.mmt.api.archives.{Importer, RedirectableDimension}
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.api.documents.Document
 import info.kwarc.mmt.api.frontend.Logger
 import info.kwarc.mmt.api.objects.{OMS, Term}

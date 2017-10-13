@@ -11,6 +11,7 @@ import parser._
 import info.kwarc.mmt.api.objects._
 import utils._
 import archives._
+import info.kwarc.mmt.api.building._
 import syntax._
 import info.kwarc.mmt.lf._
 import info.kwarc.mmt.api.uom.StandardRat

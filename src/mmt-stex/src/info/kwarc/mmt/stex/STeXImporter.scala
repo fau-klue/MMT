@@ -4,6 +4,7 @@ import info.kwarc.mmt.api._
 import archives._
 import documents._
 import frontend._
+import info.kwarc.mmt.api.building._
 import informal._
 import modules._
 import notations._

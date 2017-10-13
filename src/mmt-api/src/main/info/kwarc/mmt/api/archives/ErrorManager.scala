@@ -5,6 +5,7 @@ import java.util.Date
 
 import info.kwarc.mmt.api.Level.Level
 import info.kwarc.mmt.api._
+import info.kwarc.mmt.api.building.{BuildTarget, TraversingBuildTarget}
 import info.kwarc.mmt.api.frontend._
 import info.kwarc.mmt.api.parser.SourceRef
 import info.kwarc.mmt.api.utils._

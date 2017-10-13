@@ -2,6 +2,7 @@ package info.kwarc.mmt.api.frontend
 
 import info.kwarc.mmt.api._
 import archives._
+import info.kwarc.mmt.api.building.BuildTarget
 import utils._
 
 /** an entry in an MMT configuration file (see [[MMTConfig]]) */

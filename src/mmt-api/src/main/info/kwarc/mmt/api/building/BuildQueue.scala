@@ -1,228 +1,93 @@
-package info.kwarc.mmt.api.archives
+package info.kwarc.mmt.api.building
 
 import java.util.concurrent.ConcurrentLinkedDeque
 
 import info.kwarc.mmt.api._
-import frontend._
-import utils._
-import web._
+import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.frontend._
+import info.kwarc.mmt.api.modules.{DeclaredTheory, DeclaredView}
+import info.kwarc.mmt.api.utils._
+import info.kwarc.mmt.api.web._
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.Queue
 import scala.collection.mutable
+import scala.util.Try
 
-/** */
-class QueuedTask(val target: TraversingBuildTarget, val task: BuildTask) {
-  /** task should be queued at end */
-  var lowPriority: Boolean = true
 
-  def highPriority = !lowPriority
-
-  /** task was not requested directly but added as dependency of some other task */
-  var dependencyClosure: Boolean = false
-
-  /** task was eventually run despite being blocked due to missing dependencies */
-  var forceRun: List[Dependency] = Nil
-
-  private val estRes = target.estimateResult(task)
-
-  /** dependencies that are needed for an up-to-date check */
-  val neededDeps: List[Dependency] = estRes.used
-
-  /** dependencies that will be used but are not available */
-  var missingDeps: List[Dependency] = estRes.used
-  /** resources that will be provided once successfully built */
-  var willProvide: List[ResourceDependency] = estRes.provided
-  /** update policy */
-  var updatePolicy = Update(Level.Force)
-
-  def toJString: String = {
-    val str = task.inPath.toString
-    (if (str.isEmpty) task.archive.id else str) + " (" + target.key + ")" +
-      missingDeps.map(_.toJString).mkString(" [", ", ", "]")
-  }
-
-  def toJson: JSONString = JSONString(toJString)
-
-  def merge(qt: QueuedTask): Unit = {
-    updatePolicy = updatePolicy.merge(qt.updatePolicy)
-    lowPriority = lowPriority && qt.lowPriority
-    dependencyClosure = dependencyClosure && qt.dependencyClosure
-    // not sure if missingDeps and willProvide should be merged
-  }
-}
-
-/** */
-sealed abstract class BuildResult {
-  /**
-    * resources that were used during building
-    */
-  def used: List[Dependency]
-
-  /** resources that have been built successfully */
-  def provided: List[ResourceDependency]
-
-  def toJson: JSON
-
-  def toJsonPart: List[(String, JSON)] =
-    List(("needed", JSONArray()),
-      ("used", JSONArray(used.map(_.toJson): _*)),
-      ("provided", JSONArray(provided.map(_.toJson): _*)))
-}
-
-object BuildResult {
-  def empty: BuildSuccess = BuildSuccess(Nil, Nil)
-  /** convenience method to create the result of successfully importing a (typically) externally checked document */
-  def fromImportedDocument(doc: documents.Document) = {
-    val provs = doc.getDeclarations collect {
-      case r: documents.MRef => LogicalDependency(r.target)
-    }
-    BuildSuccess(Nil, provs)
-  }
-
-  case class MissingDependency(paths : List[MPath]) extends Throwable
-}
-
-case class BuildEmpty(str: String) extends BuildResult {
-  def used: List[Dependency] = Nil
-
-  def provided: List[ResourceDependency] = Nil
-
-  def toJson: JSON = JSONObject(("result", JSONString(str)) :: toJsonPart: _*)
-}
-
-/** successful build */
-case class BuildSuccess(used: List[Dependency], provided: List[ResourceDependency]) extends BuildResult {
-  def toJson: JSON = JSONObject(("result", JSONString("success")) :: toJsonPart: _*)
-}
-
-/** unrecoverable failure */
-case class BuildFailure(used: List[Dependency], provided: List[ResourceDependency]) extends BuildResult {
-  def toJson: JSON = JSONObject(("result", JSONString("failure")) :: toJsonPart: _*)
-}
-
-/** recoverable failure: build should be retried after building a missing dependency */
-case class MissingDependency(needed: List[Dependency], provided: List[ResourceDependency], used : List[Dependency]) extends BuildResult {
-
-  def toJson: JSON = JSONObject(("result", JSONString("failed")) ::
-    ("needed", JSONArray(needed.map(_.toJson): _*)) :: toJsonPart.tail: _*)
-}
-
-/** dependency of a [[QueuedTask]] */
-sealed abstract class Dependency {
-  /** convert to a string for toJson */
-  def toJString: String
-
-  def toJson: JSONString = JSONString(toJString)
-}
-
-sealed abstract class BuildDependency extends Dependency {
-  def key: String
-
-  def archive: Archive
-
-  def inPath: FilePath
-
-  def getTarget(controller: Controller): TraversingBuildTarget =
-    controller.extman.getOrAddExtension(classOf[TraversingBuildTarget], key).getOrElse {
-      throw RegistrationError("build target not found: " + key)
-    }
-
-  def getErrorFile(controller: Controller): File
-}
-
-/** dependency on another [[BuildTask]]
-  *
-  * @param inPath path to file (without inDim)
-  */
-case class FileBuildDependency(key: String, archive: Archive, inPath: FilePath) extends BuildDependency {
-  def toJString: String = inPath.toString + " (" + key + ")"
-
-  def getErrorFile(controller: Controller): File = (archive / errors / key / inPath).addExtension("err")
-}
-
-/** like [[FileBuildDependency]] but for a directory
-  *
-  * @param inPath path to file (without inDim)
-  */
-case class DirBuildDependency(key: String, archive: Archive, inPath: FilePath, children: List[BuildTask])
-  extends BuildDependency {
-  def toJString: String = archive.id + "/" + inPath.toString +
-    " (" + key + ") " + children.map(bt => bt.inPath).mkString("[", ", ", "]")
-
-  def getErrorFile(controller: Controller): File = getTarget(controller).getFolderErrorFile(archive, inPath)
-}
-
-sealed abstract class ResourceDependency extends Dependency
-
-/** a dependency on a physical resource
-  */
-case class PhysicalDependency(file: File) extends ResourceDependency {
-  def toJString: String = file.toString
-}
-
-/** a dependency on an MMT module that must be provided by building some other [[BuildTask]]
-  *
-  * providing the dependency typically requires some catalog to determine the appropriate [[BuildTask]]
-  */
-case class LogicalDependency(mpath: MPath) extends ResourceDependency {
-  def toJString: String = mpath.toString
-}
 
 /** handles build tasks generated by a [[TraversingBuildTarget]] */
 trait BuildManager extends Extension {
-  def addTasks(up: Update, qts: Iterable[QueuedTask])
+  def addTasks(/* up: Update,*/ qts: Iterable[BuildTask])
 }
 
 /** builds tasks immediately (no queueing, no dependency management, no parallel processing) */
 class TrivialBuildManager extends BuildManager {
-  def addTasks(up: Update, qts: Iterable[QueuedTask]) =
+  def addTasks(/* up: Update,*/ qts: Iterable[BuildTask]) =
     qts.foreach { qt =>
-      qt.target.checkOrRunBuildTask(Set(), qt.task, up)
+      qt.target.runBuildTask(qt/*, up*/)
     }
 }
 
-/** uses a queue of build tasks for multi-threaded execution, includes dependency management */
-class BuildQueue extends ServerExtension("queue") with BuildManager {
-  override def logPrefix: String = "queue"
+abstract class QueuePolicy {
+  def add(qt : BuildTask, qs : QueueState) : Unit
+  def unblockTask(qt : BuildTask, bs : BuildResult, qs : QueueState) : Boolean
+  def doBuildResult(br : BuildResult, qs : QueueState)
+}
+
+object QueuePolicy {
+  def default = new QueuePolicy {
+    def add(qt : BuildTask, qs : QueueState) = qs.queued.add(qt)
+    def unblockTask(qt: BuildTask, bs: BuildResult, qs: QueueState): Unit = {
+      bs match {
+        case MissingDependency(_, _, _) if qs.blocked.contains(qt) =>
+        case _ =>
+          qt.missingDeps = qt.missingDeps diff bs.provided
+      }
+      qt.missingDeps.isEmpty
+    }
+    override def doBuildResult(br: BuildResult, qs: QueueState): Unit = ???
+  }
+}
+
+class QueueState {
   // ******************* state
 
   /** the queue */
-  private val queued: ConcurrentLinkedDeque[QueuedTask] = new ConcurrentLinkedDeque[QueuedTask]
+   val queued: ConcurrentLinkedDeque[BuildTask] = new ConcurrentLinkedDeque[BuildTask]
   /** tasks that were queued but are blocked due to missing dependencies; they are to be re-queued when the queue is empty */
-  private var blocked: List[QueuedTask] = Nil
+   var blocked: List[BuildTask] = Nil
   /** true while the BuildQueue is processing the blocked tasks (i.e., after all queued tasks are built), whose missing dependencies could not be resolve */
-  private var processingBlockedTasks = false
+   var processingBlockedTasks = false
 
   /** all queued tasks, indexed by their identifying data */
-  private val alreadyQueued: mutable.HashMap[BuildDependency, QueuedTask] = new mutable.HashMap[BuildDependency, QueuedTask]
+   val alreadyQueued: mutable.HashMap[BuildDependency, BuildTask] = new mutable.HashMap[BuildDependency, BuildTask]
   /** all built (successfully or permanently-failing) tasks since the last time the queue was empty, indexed by their identifying data */
-  private val alreadyBuilt: mutable.HashMap[BuildDependency, BuildResult] = new mutable.HashMap[BuildDependency, BuildResult]
+   val alreadyBuilt: mutable.HashMap[BuildDependency, BuildResult] = new mutable.HashMap[BuildDependency, BuildResult]
 
   /** history of recent builds, used only for statistics/reporting */
-  private var recentlyBuilt: List[(BuildDependency, BuildResult)] = Nil
+   var recentlyBuilt: List[(BuildDependency, BuildResult)] = Nil
 
   // TODO unclear how this is used
-  private var currentQueueTask: Option[QueuedTask] = None
+   var currentQueueTask: Option[BuildTask] = None
 
   // TODO unclear how this is used
-  private var cycleCheck: Set[BuildDependency] = Set.empty
+   var cycleCheck: Set[BuildDependency] = Set.empty
 
   /** the catalog mapping from (logical) resource dependency to build dependency */
   // TODO unclear how this is used
-  private val catalog: mutable.HashMap[ResourceDependency, BuildDependency] = new mutable.HashMap[ResourceDependency, BuildDependency]
+   val catalog: mutable.HashMap[ResourceDependency, BuildDependency] = new mutable.HashMap[ResourceDependency, BuildDependency]
 
   /** true if the BuildQueue should continue building */
-  private var continue: Boolean = true
+   var continue: Boolean = true
   /** artificially slows down building by pausing before each task, useful for debugging */
-  private var pauseBeforeEachTask: Boolean = false
+   var pauseBeforeEachTask: Boolean = false
   /** time to pause when nothing to do */
-  private val pauseTime: Int = 2000
+   val pauseTime: Int = 2000
   /** true if the BuildQueue should destroy itself once it is empty (used to finish building when the main thread already terminated) */
-  private var stopOnEmpty: Boolean = false
+   var stopOnEmpty: Boolean = false
 
   // clears the queue
-  private def clear {
+   def clear {
     queued.clear
     alreadyBuilt.clear
     alreadyQueued.clear
@@ -232,6 +97,16 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
     cycleCheck = Set.empty
   }
 
+}
+
+/** uses a queue of build tasks for multi-threaded execution, includes dependency management */
+class BuildQueue extends ServerExtension("queue") with BuildManager {
+  override def logPrefix: String = "queue"
+  
+  private object Queue extends QueueState
+  
+  import Queue._
+  
   // ******************* main management interface
 
   /** adds the ServerExtension :queue and starts a separate thread for building */
@@ -258,15 +133,16 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
 
   // ******************* task management (queuing and dequeuing)
 
-  def addTasks(up: Update, qts: Iterable[QueuedTask]) {
+  // TODO add policies here
+  def addTasks(/* up: Update,*/ qts: Iterable[BuildTask]) {
     synchronized {
-      qts.foreach(addTask(up, _))
+      qts.foreach(addTask(/*up,*/ _))
     }
   }
 
   /** adds a single task */
-  private def addTask(up: Update, qt: QueuedTask) {
-    qt.updatePolicy = up
+  private def addTask(/*up: Update,*/ qt: BuildTask) { /* TODO needs rewrite
+    // qt.updatePolicy = up
     log("added:" + qt.toJString)
     val qtDep = qt.task.asDependency
     qt.willProvide.foreach(rd => if (catalog.contains(rd)) log(rd.toJString + " in " + catalog(rd).toJString)
@@ -298,13 +174,13 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
     } else {
       queued.addFirst(qt)
     }
-    alreadyQueued(qtDep) = qt
+    alreadyQueued(qtDep) = qt */
   }
 
   /** recursively queues all dependencies of the next task; then returns the head of the queue */
   private def getTopTask: List[Dependency] = synchronized {
     currentQueueTask = Option(queued.poll)
-    currentQueueTask.foreach(qt => alreadyQueued -= qt.task.asDependency)
+    currentQueueTask.foreach(qt => alreadyQueued -= qt.asDependency)
     currentQueueTask match {
       case None => Nil
       case Some(qt) => qt.missingDeps.filter {
@@ -314,7 +190,7 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
     }
   }
 
-  private def getNextTask: Option[QueuedTask] = {
+  private def getNextTask: Option[BuildTask] = {
     val currentMissingDeps = getTopTask
     val (bDeps, rDeps) = currentMissingDeps.partition {
       case bd: BuildDependency => true
@@ -340,15 +216,15 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
       } else {
         qt.missingDeps = Nil
         queued.addFirst(qt)
-        cycleCheck += qt.task.asDependency
-        bds.foreach(t => buildDependency(qt.updatePolicy.forDependencies, t))
+        cycleCheck += qt.asDependency
+        bds.foreach(t => buildDependency(/*qt.updatePolicy.forDependencies,*/ t))
         getNextTask
       }
     } else currentQueueTask
   }
 
   /** unblock previously blocked tasks whose dependencies have now been provided */
-  private def unblockTasks(res: BuildResult,qt : QueuedTask) {
+  private def unblockTasks(res: BuildResult,qt : BuildTask) {
     res match {
       case MissingDependency(_,_,_) if blocked.contains(qt) =>
       case _ =>
@@ -358,8 +234,8 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
     }
     val (unblocked, stillBlocked) = blocked.partition(_.missingDeps.isEmpty)
     blocked = stillBlocked
-    unblocked.foreach(u => log("Unblocked: " + u.task.inFile))
-    if (unblocked.nonEmpty) recentlyBuilt ::= ((qt.task.asDependency,BuildEmpty("unblocked: " + unblocked.map(_.task.inFile).mkString(", "))))
+    unblocked.foreach(u => log("Unblocked: " + u.inFile))
+    if (unblocked.nonEmpty) recentlyBuilt ::= ((qt.asDependency,BuildEmpty("unblocked: " + unblocked.map(_.inFile).mkString(", "))))
     unblocked.reverseMap(queued.add)
   }
 
@@ -394,20 +270,20 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
 
   /** adds tasks for all dependencies of a task (given as a [[BuildDependency]])
     *
-    * @param up the update level for the dependency
+    * param up the update level for the dependency
     * @param bd build dependency to be added
     */
-  private def buildDependency(up: Update, bd: BuildDependency) = if (!cycleCheck.contains(bd)) {
+  private def buildDependency(/* up: Update,*/ bd: BuildDependency) = if (!cycleCheck.contains(bd)) {
     val tar = bd.getTarget(controller)
     val inFile = bd.archive / tar.inDim / bd.inPath
     val bt = bd match {
       case _: FileBuildDependency => tar.makeBuildTask(bd.archive, bd.inPath)
       case dbd: DirBuildDependency => tar.makeBuildTask(dbd.archive, dbd.inPath, dbd.children)
     }
-    val qt = new QueuedTask(tar, bt)
-    qt.lowPriority = false
-    qt.dependencyClosure = true
-    addTask(up, qt)
+    //val qt = new QueuedTask(tar, bt)
+    // qt.lowPriority = false
+    // qt.dependencyClosure = true
+    addTask(/* up,*/ bt)
   }
 
   // ******************* the actual building
@@ -416,18 +292,18 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
 
   }
 
-  def doBuildResult(res1 : BuildResult,qt : QueuedTask) = {
+  def doBuildResult(res1 : BuildResult,qt : BuildTask) = {
     val res = res1 match {
       // let's assume for now that the estimation is better than the actual result
       case BuildSuccess(u, Nil) =>
         log("Success: " + qt.willProvide.mkString(", "))
         BuildSuccess(u, qt.willProvide)
       case bf@BuildFailure(use,pr) =>
-        val newmissings = (queued.toArray(Nil.asInstanceOf[List[QueuedTask]].toArray).toList :::
+        val newmissings = (queued.toArray(Nil.asInstanceOf[List[BuildTask]].toArray).toList :::
           blocked).flatMap(_.willProvide).filter(use.contains)
         if (newmissings.nonEmpty) MissingDependency(newmissings,pr,use) else bf
       case MissingDependency(md,pr,use) =>
-        val newmissings = (queued.toArray(Nil.asInstanceOf[List[QueuedTask]].toArray).toList :::
+        val newmissings = (queued.toArray(Nil.asInstanceOf[List[BuildTask]].toArray).toList :::
           blocked).flatMap(_.willProvide).filter(use.contains) ::: (md collect {
           case ld @ LogicalDependency(mp) if controller.getO(mp).isEmpty => ld
           case pd : PhysicalDependency => pd
@@ -435,8 +311,8 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
         MissingDependency(newmissings.distinct,pr,use)
       case _ => res1
     }
-    val qtDep = qt.task.asDependency
-    if (!qt.dependencyClosure) cycleCheck -= qtDep
+    val qtDep = qt.asDependency
+    // if (!qt.dependencyClosure) cycleCheck -= qtDep
       currentQueueTask = None
       /* add two dummy results into the finished queue to show what happened to a blocked task */
     /*
@@ -454,7 +330,7 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
         }
         recentlyBuilt ::= (qtDep,res)
         res.provided.foreach(catalog(_) = qtDep)
-        log(res.getClass.getCanonicalName + ": " + qt.task.inFile)
+        log(res.getClass.getCanonicalName + ": " + qt.inFile)
       // TODO write file errors/.../file.deps
       // XML file containing used, provided, had errors
       case MissingDependency(missing, provided, used) =>
@@ -490,10 +366,10 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
         else {
           getNextTask match {
             case Some(qt) =>
-              log("Doing " + qt.task.inFile)
+              log("Doing " + qt.inFile)
               // TODO run this in a Future and track dependencies
-              qt.task.errorCont.reset
-              val res1 = qt.target.checkOrRunBuildTask(qt.neededDeps.toSet, qt.task, qt.updatePolicy)
+              qt.errorCont.mark
+              val res1 = qt.target.runBuildTask(qt/*, qt.updatePolicy*/)
               doBuildResult(res1,qt)
             case None =>
               // no next task in queue
@@ -502,7 +378,7 @@ class BuildQueue extends ServerExtension("queue") with BuildManager {
                 log("flush blocked tasks by ignoring their missing dependencies")
                 processingBlockedTasks = true
                 val qt = blocked.head
-                qt.forceRun = qt.missingDeps
+                // qt.forceRun = qt.missingDeps
                 qt.missingDeps = Nil
                 blocked = blocked.tail
                 queued.add(qt)

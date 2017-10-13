@@ -3,6 +3,7 @@ package info.kwarc.mmt.imps
 import info.kwarc.mmt.api.archives._
 import info.kwarc.mmt.api.documents._
 import info.kwarc.mmt.api._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.api.frontend._
 import info.kwarc.mmt.api.modules.{DeclaredModule, DeclaredTheory}
 import info.kwarc.mmt.api.objects.{OMMOD, OMS, Term}

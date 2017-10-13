@@ -3,6 +3,7 @@ package info.kwarc.mmt.api.frontend
 import info.kwarc.mmt.api._
 import utils._
 import archives._
+import info.kwarc.mmt.api.building.{BuildTarget, TraversingBuildTarget}
 
 /** a make-like shell extension that calls a build target on a file/folder in an archive
  */

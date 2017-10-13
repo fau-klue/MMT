@@ -4,6 +4,7 @@ import info.kwarc.mmt.api._
 import documents._
 import frontend._
 import Level.Level
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask, TraversingBuildTarget}
 import modules._
 import parser._
 import utils._
@@ -153,7 +154,7 @@ abstract class Importer extends TraversingBuildTarget {imp =>
          case IsRootDoc(dp) => dp
          case _ => throw LocalError("can only interpret root documents")
       }
-      imp.build(arch, Build.update, FilePath(path), Some(errorCont))
+      imp.build(arch,/* Build.update,*/ FilePath(path), Some(errorCont))
       try {
         controller.globalLookup.getAs(classOf[Document],dpath)
       } catch {

@@ -1,13 +1,13 @@
-package info.kwarc.mmt.api.archives
+package info.kwarc.mmt.api.building
 
 import info.kwarc.mmt.api.Level.Level
-import info.kwarc.mmt.api._
-import utils._
+import info.kwarc.mmt.api.utils.File
 
 /** builds a folder by concatenating the build results of its children
   *
   * not used yet!
   * */
+/*
 trait AggregatingBuildTarget extends TraversingBuildTarget {
    override def buildDir(bd: BuildTask, builtChildren: List[BuildTask], level: Level): BuildResult = {
      var res = ""
@@ -19,3 +19,4 @@ trait AggregatingBuildTarget extends TraversingBuildTarget {
      BuildSuccess(Nil, Nil)
    }
 }
+*/

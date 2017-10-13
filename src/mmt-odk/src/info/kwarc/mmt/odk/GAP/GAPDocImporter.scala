@@ -2,6 +2,7 @@ package info.kwarc.mmt.odk.GAP
 
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.{BuildFailure, BuildResult, BuildTask}
 import info.kwarc.mmt.api.documents._
 import info.kwarc.mmt.api.frontend._
 import info.kwarc.mmt.api.informal._

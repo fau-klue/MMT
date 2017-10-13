@@ -5,6 +5,7 @@ import java.nio.file.Files
 
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building._
 import info.kwarc.mmt.api.parser.{SourcePosition, SourceRef, SourceRegion}
 import info.kwarc.mmt.api.utils.AnaArgs._
 import info.kwarc.mmt.api.utils._

@@ -8,6 +8,7 @@ import info.kwarc.mmt.api.frontend._
 import info.kwarc.mmt.api.ontology._
 import info.kwarc.mmt.api.utils._
 import ServerResponse._
+import info.kwarc.mmt.api.building.BuildTarget
 import info.kwarc.mmt.api.objects.Context
 
 /**

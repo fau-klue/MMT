@@ -1,9 +1,9 @@
 package info.kwarc.mmt.imps
 
 import scala.io.Source
-
 import info.kwarc.mmt.api.utils._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.api.documents._
 
 class IMPSImporter extends Importer

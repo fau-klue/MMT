@@ -1,6 +1,7 @@
 package info.kwarc.mmt.api
 
 import Level.Level
+import info.kwarc.mmt.api.building.BuildTarget
 import parser.SourceRef
 import utils._
 
@@ -229,7 +230,7 @@ abstract class ExtensionError(prefix: String, s: String) extends Error(prefix + 
 
 /** the type of continuation functions for error handling
   *
-  * An ErrorHandler is passed in most situations in which a component (in particular [[archives.BuildTarget]]s)
+  * An ErrorHandler is passed in most situations in which a component (in particular [[BuildTarget]]s)
   * might produce a non-fatal error.
   */
 abstract class ErrorHandler {
@@ -238,11 +239,6 @@ abstract class ErrorHandler {
   private var assumeNoErrors = true
 
   def mark {
-    assumeNoErrors = true
-  }
-
-  def reset = {
-    newErrors = false
     assumeNoErrors = true
   }
 
@@ -332,7 +328,6 @@ class ErrorContainer(report: Option[frontend.Report]) extends ErrorHandler {
 
   override def reset() {
     errors = Nil
-    super.reset
   }
 
 

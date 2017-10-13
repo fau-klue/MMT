@@ -4,8 +4,9 @@ import info.kwarc.mmt.api._
 import archives._
 import documents._
 import frontend._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import info.kwarc.mmt.api.parser.SourceRef
-import info.kwarc.mmt.stex.{OMDoc}
+import info.kwarc.mmt.stex.OMDoc
 import informal._
 import modules._
 import notations._

@@ -8,6 +8,7 @@ import notations._
 import documents._
 import modules._
 import archives._
+import info.kwarc.mmt.api.building.BuildTask
 
 /**
  * the type of presenters that can handle objects

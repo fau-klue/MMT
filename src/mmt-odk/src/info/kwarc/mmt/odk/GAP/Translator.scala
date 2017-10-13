@@ -2,6 +2,7 @@ package info.kwarc.mmt.odk.GAP
 
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.BuildTask
 import info.kwarc.mmt.api.checking._
 import info.kwarc.mmt.api.documents._
 import info.kwarc.mmt.api.frontend._
@@ -9,7 +10,6 @@ import info.kwarc.mmt.api.modules._
 import info.kwarc.mmt.api.objects._
 import info.kwarc.mmt.api.ontology._
 import info.kwarc.mmt.api.symbols._
-
 import info.kwarc.mmt.lf._
 
 import scala.collection.mutable

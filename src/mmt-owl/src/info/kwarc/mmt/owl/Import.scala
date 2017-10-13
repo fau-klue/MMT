@@ -1,6 +1,6 @@
 package info.kwarc.mmt.owl
 
-import info.kwarc.mmt.api.archives.BuildResult
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.model._
 
@@ -617,7 +617,7 @@ class OWLCompiler extends archives.Importer {
 
   def inExts = List("owl")
 
-  def importDocument(bf: archives.BuildTask, seCont: documents.Document => Unit): BuildResult = {
+  def importDocument(bf: BuildTask, seCont: documents.Document => Unit): BuildResult = {
     val source: File = bf.inFile
     val target: File = bf.outFile.setExtension("omdoc")
 

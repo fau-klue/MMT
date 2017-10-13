@@ -2,9 +2,10 @@ package info.kwarc.mmt.api.parser
 
 import info.kwarc.mmt.api._
 import documents._
-import archives.{BuildResult, BuildSuccess, BuildTask, LogicalDependency}
+import archives.{BuildResult, BuildSuccess, LogicalDependency}
 import checking.Interpreter
 import frontend.Controller
+import info.kwarc.mmt.api.building.{BuildResult, BuildSuccess, BuildTask, LogicalDependency}
 import modules._
 import notations._
 import objects._
@@ -1001,7 +1002,7 @@ class KeywordBasedParser(objectParser: ObjectParser) extends Parser(objectParser
 
 
 /**
-  * estimates the [[archives.BuildResult]] of an mmt [[Interpreter]] by using the [[StructureParser]] superficially
+  * estimates the [[BuildResult]] of an mmt [[Interpreter]] by using the [[StructureParser]] superficially
   */
 trait MMTStructureEstimator {self: Interpreter =>
   private var used: List[MPath] = Nil

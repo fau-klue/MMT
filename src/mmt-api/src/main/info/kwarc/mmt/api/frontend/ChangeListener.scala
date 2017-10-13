@@ -1,6 +1,7 @@
 package info.kwarc.mmt.api.frontend
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.TraversingBuildTarget
 import info.kwarc.mmt.api.utils.FilePath
 
 /**

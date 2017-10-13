@@ -4,6 +4,7 @@ import java.io._
 
 import info.kwarc.mmt.api._
 import archives._
+import info.kwarc.mmt.api.building.BuildTask
 import info.kwarc.mmt.twelf.Catalog
 import parser._
 import utils.{File, FileURI}

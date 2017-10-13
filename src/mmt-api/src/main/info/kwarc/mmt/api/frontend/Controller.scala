@@ -6,6 +6,7 @@ import backend._
 import checking._
 import documents._
 import gui._
+import info.kwarc.mmt.api.building.{BuildManager, BuildTarget}
 import libraries._
 import moc._
 import modules._

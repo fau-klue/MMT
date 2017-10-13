@@ -2,6 +2,7 @@ package info.kwarc.mmt.odk.Sage
 
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.BuildTask
 import info.kwarc.mmt.api.checking._
 import info.kwarc.mmt.api.documents._
 import info.kwarc.mmt.api.frontend._

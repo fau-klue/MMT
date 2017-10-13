@@ -1,10 +1,10 @@
 package info.kwarc.mmt.metamath
 
-import scala.collection.mutable.{HashMap,Stack,TreeSet}
-
+import scala.collection.mutable.{HashMap, Stack, TreeSet}
 import org.metamath.scala._
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.BuildTask
 import info.kwarc.mmt.api.checking.{Checker, CheckingEnvironment, RelationHandler}
 import info.kwarc.mmt.api.documents._
 import info.kwarc.mmt.api.frontend._

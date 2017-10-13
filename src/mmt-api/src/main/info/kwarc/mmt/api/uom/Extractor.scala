@@ -7,6 +7,7 @@ import libraries._
 import documents._
 import symbols._
 import archives._
+import info.kwarc.mmt.api.building.BuildTask
 import utils._
 import objects._
 

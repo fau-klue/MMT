@@ -11,10 +11,10 @@ import info.kwarc.mmt.api.opaque._
 import info.kwarc.mmt.api.utils._
 import info.kwarc.mmt.api.ontology._
 import info.kwarc.mmt.api.archives.Archive
-import info.kwarc.mmt.api.archives.BuildTask
 import info.kwarc.mmt.api.opaque.OpaqueHTMLPresenter
 import HTMLAttributes._
 import File.scala2Java
+import info.kwarc.mmt.api.building.BuildTask
 import info.kwarc.mmt.api.parser.ParseResult
 
 import scala.Range

@@ -403,8 +403,8 @@ case class AddArchive(folder: java.io.File) extends Action {
 }
 
 /** builds a dimension in a previously opened archive */
-case class ArchiveBuild(ids: List[String], dim: String, modifier: BuildTargetModifier, in: FilePath = EmptyPath) extends Action {
-  override def toString = "build " + MyList(ids).mkString("[", ",", "]") + " " + modifier.toString(dim) +
+case class ArchiveBuild(ids: List[String], dim: String, /* modifier: BuildTargetModifier,*/ in: FilePath = EmptyPath) extends Action {
+  override def toString = "build " + MyList(ids).mkString("[", ",", "]") + " " + /* modifier.toString(dim) + */
     (if (in.segments.isEmpty) "" else " " + in)
 }
 

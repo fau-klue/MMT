@@ -3,6 +3,7 @@ import info.kwarc.mmt.api._
 import archives._
 import frontend._
 import documents._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 
 class GAPImporter extends Importer {
   val key = "gap-omdoc"

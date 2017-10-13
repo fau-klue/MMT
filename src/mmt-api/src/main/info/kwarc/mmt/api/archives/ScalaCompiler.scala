@@ -2,8 +2,8 @@ package info.kwarc.mmt.api.archives
 
 import info.kwarc.mmt.api._
 import utils._
-
 import MMTSystem._
+import info.kwarc.mmt.api.building.BuildTarget
 
 object ScalaOutDim extends RedirectableDimension("bin")
 
@@ -13,7 +13,7 @@ class ScalaCompiler extends BuildTarget {
 
    private def jars(f: File) = f.children.filter(_.getExtension.contains("jar"))
 
-   def build(a: Archive, up: Update, in: FilePath) {
+   def build(a: Archive, in: FilePath) {
      (a / ScalaOutDim).mkdirs
      val folderList = a.properties.getOrElse("scala", "scala")
      val folders = stringToList(folderList).map(d => a / Dim(d)).filter(_.exists)

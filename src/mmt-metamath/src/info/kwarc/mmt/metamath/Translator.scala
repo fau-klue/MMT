@@ -1,10 +1,8 @@
 package info.kwarc.mmt.metamath
 
-import info.kwarc.mmt.api.archives.BuildTask
 import info.kwarc.mmt.api.documents.Document
 import info.kwarc.mmt.api.frontend.{Controller, Logger}
 import info.kwarc.mmt.api.objects._
-import Metamath._
 import info.kwarc.mmt.api.LocalName
 import info.kwarc.mmt.api.symbols
 import info.kwarc.mmt.api.modules.DeclaredTheory
@@ -12,6 +10,7 @@ import info.kwarc.mmt.api.opaque.OpaqueText
 import info.kwarc.mmt.api.opaque.StringFragment
 import org.metamath.scala._
 import info.kwarc.mmt.api.MPath
+import info.kwarc.mmt.api.building.BuildTask
 
 /*
 class Translator(val controller: Controller, bt: BuildTask, index: Document => Unit) extends Logger {

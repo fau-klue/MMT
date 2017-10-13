@@ -1,6 +1,7 @@
 package info.kwarc.mmt.stex
 
 import info.kwarc.mmt.api.archives._
+import info.kwarc.mmt.api.building.{Dependency, FileBuildDependency, PhysicalDependency, TraversingBuildTarget}
 import info.kwarc.mmt.api.utils.{File, FilePath}
 import info.kwarc.mmt.stex.STeXUtils._
 

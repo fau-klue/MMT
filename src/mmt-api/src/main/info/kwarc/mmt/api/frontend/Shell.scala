@@ -1,7 +1,8 @@
 package info.kwarc.mmt.api.frontend
 
 import info.kwarc.mmt.api._
-import info.kwarc.mmt.api.archives.{BuildQueue, BuildManager}
+import info.kwarc.mmt.api.archives.BuildManager
+import info.kwarc.mmt.api.building.BuildQueue
 import utils._
 
 /** mixes in helper functions for interactive shells */

@@ -5,7 +5,8 @@ import info.kwarc.mmt.api._
 import documents._
 import modules._
 import utils._
-import archives._ 
+import archives._
+import info.kwarc.mmt.api.building.{BuildResult, BuildTask}
 
 class TPSImporter extends Importer {
    val key = "tps-omdoc"

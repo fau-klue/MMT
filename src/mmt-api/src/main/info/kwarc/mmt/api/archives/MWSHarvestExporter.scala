@@ -9,10 +9,11 @@ import backend._
 import objects._
 import utils._
 import documents._
+import info.kwarc.mmt.api.building.BuildTask
 import parser._
 import uom._
 
-import scala.collection.immutable.{HashMap}
+import scala.collection.immutable.HashMap
 import scala.xml.Node
 
 class MWSHarvestExporter extends Exporter {

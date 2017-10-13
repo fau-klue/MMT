@@ -10,6 +10,7 @@ import objects._
 import utils._
 import informal._
 import archives._
+import info.kwarc.mmt.api.building.BuildTask
 import notations._
 import utils.xml._
 import info.kwarc.mmt.api.opaque.OpaqueElement

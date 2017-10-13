@@ -4,6 +4,7 @@ import info.kwarc.mmt.api._
 import documents._
 import frontend._
 import Level.Level
+import info.kwarc.mmt.api.building.{BuildResult, BuildTarget, BuildTask, TraversingBuildTarget}
 import modules._
 import objects._
 import presentation._
@@ -64,9 +65,9 @@ trait Exporter extends BuildTarget {
     */
   def exportNamespace(dpath: DPath, bd: BuildTask, namespaces: List[BuildTask], modules: List[BuildTask]): Unit
 
-  def build(a: Archive, up: Update, in: FilePath) {
-    contentExporter.build(a, up, in)
-    narrationExporter.build(a, up, in)
+  def build(a: Archive, /*up: Update,*/ in: FilePath) {
+    contentExporter.build(a, /*up,*/ in)
+    narrationExporter.build(a, /*up,*/ in)
   }
 
   def clean(a: Archive, in: FilePath) {

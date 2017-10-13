@@ -1,8 +1,9 @@
 package info.kwarc.mmt.api.proving
 
 import info.kwarc.mmt.api._
-import archives._ 
+import archives._
 import documents._
+import info.kwarc.mmt.api.building.BuildTask
 import modules._
 import symbols._
 import objects._

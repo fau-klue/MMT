@@ -1,8 +1,9 @@
-package info.kwarc.mmt.api.archives
+package info.kwarc.mmt.api.building
 
 import info.kwarc.mmt.api.ExtensionError
+import info.kwarc.mmt.api.archives.{RedirectableDimension, source}
+import info.kwarc.mmt.api.utils.File._
 import info.kwarc.mmt.api.utils._
-import File._
 
 /** a simple build target for testing */
 class DummyBuildTarget extends TraversingBuildTarget {
