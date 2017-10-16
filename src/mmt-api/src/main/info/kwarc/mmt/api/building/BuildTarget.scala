@@ -187,6 +187,7 @@ abstract class BuildTarget extends FormatBasedExtension {
   override def logPrefix: String = key
 
   /** build or update this target in a given archive */
+  /** From [[apply]] */
   def build(a: Archive, /* up: Update,*/ in: FilePath): Unit
 
   /** clean this target in a given archive */
@@ -200,6 +201,8 @@ abstract class BuildTarget extends FormatBasedExtension {
     * @param arch     the archive to build on
     * @param in       the folder inside the archive's inDim folder to which building is restricted
     */
+  /** From [[info.kwarc.mmt.api.frontend.ActionHandling.archiveBuildAction]] */
+  /** To [[TraversingBuildTarget.build]] */
   def apply(/* modifier: BuildTargetModifier,*/ arch: Archive, in: FilePath) { build(arch,in)
     /*
     modifier match {
@@ -316,17 +319,20 @@ abstract class TraversingBuildTarget extends BuildTarget {
 
   // ***************** building (i.e., create build tasks and add them to build manager)
 
+  /** from [[apply]] */
+  override def build(a: Archive, in: FilePath): Unit =
+    controller.buildManager.addTasks(buildTargets(a, in))
 
   /** delegates to build */
-  def build(a: Archive, /* up: Update,*/ in: FilePath, policy: QueuePolicy = QueuePolicy.default) {
-    build(a, in, None, policy)
+  def buildTargets(a: Archive, /* up: Update,*/ in: FilePath, policy: QueuePolicy = QueuePolicy.default) = {
+    buildTargets(a, in, None, policy)
   }
 
   /** entry point for recursive building */
-  def build(a: Archive, /* up: Update,*/ in: FilePath, errorCont: Option[ErrorHandler] = None, policy: QueuePolicy = QueuePolicy.default) {
+  def buildTargets(a: Archive, /* up: Update,*/ in: FilePath, errorCont: Option[ErrorHandler] = None, policy: QueuePolicy = QueuePolicy.default) = {
     val qts = makeBuildTasks(a, in, errorCont, policy)
     //controller.buildManager.addTasks(qts)
-    throw new Exception("TODO")
+    //throw new Exception("TODO")
   }
 
 
@@ -373,7 +379,7 @@ abstract class TraversingBuildTarget extends BuildTarget {
 
   /** makes a build task for a single file (ignoring built children) or directory */
   // TODO: public because it is called by BuildQueue on dependencies; clean that up
-  def makeBuildTask(a: Archive, inPath: FilePath, children: List[BuildTask] = Nil, policy: QueuePolicy = QueuePolicy.default): BuildTask = {
+  private[building] def makeBuildTask(a: Archive, inPath: FilePath, children: List[BuildTask] = Nil, policy: QueuePolicy = QueuePolicy.default): BuildTask = {
     val inFile = a / inDim / inPath
     val isDir = inFile.isDirectory
     makeBuildTask(a, inPath, inFile, if (isDir) Some(children) else None, None, policy)

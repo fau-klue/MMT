@@ -147,6 +147,7 @@ object Action extends RegexParsers {
   private def quotedStr = ("\".*\"" r) ^^ { s => s.substring(1, s.length - 1) }
 
   /** build modifiers */
+  /** see [[ArchiveBuild]] */
   private def keyMod = str ^^ { case km =>
     if (km.startsWith("-"))
       (km.tail, Clean)
@@ -403,6 +404,7 @@ case class AddArchive(folder: java.io.File) extends Action {
 }
 
 /** builds a dimension in a previously opened archive */
+/** to by [[ActionHandling.archiveBuildAction]] */
 case class ArchiveBuild(ids: List[String], dim: String, /* modifier: BuildTargetModifier,*/ in: FilePath = EmptyPath) extends Action {
   override def toString = "build " + MyList(ids).mkString("[", ",", "]") + " " + /* modifier.toString(dim) + */
     (if (in.segments.isEmpty) "" else " " + in)

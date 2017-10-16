@@ -2,6 +2,7 @@ package info.kwarc.mmt.api.building
 
 import java.util.concurrent.ConcurrentLinkedDeque
 
+import info.kwarc.mmt.api.Level.Level
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.archives._
 import info.kwarc.mmt.api.frontend._
@@ -32,6 +33,7 @@ abstract class QueuePolicy {
   def add(qt : BuildTask, qs : QueueState) : Unit
   def unblockTask(qt : BuildTask, bs : BuildResult, qs : QueueState) : Boolean
   def doBuildResult(br : BuildResult, qs : QueueState)
+  val level : Level
 }
 
 object QueuePolicy {
@@ -46,6 +48,8 @@ object QueuePolicy {
       qt.missingDeps.isEmpty
     }
     override def doBuildResult(br: BuildResult, qs: QueueState): Unit = ???
+
+    val level = Level.Force
   }
 }
 

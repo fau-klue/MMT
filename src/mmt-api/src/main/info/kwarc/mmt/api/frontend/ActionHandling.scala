@@ -289,7 +289,8 @@ trait ActionHandling {self: Controller =>
     }
   }
   
-  /** handles [[ArchiveBuild]] */ 
+  /** handles [[ArchiveBuild]] */
+  /** Continues to [[info.kwarc.mmt.api.building.BuildTarget.apply]] **/
   def archiveBuildAction(ids: List[String], key: String, mod: BuildTargetModifier, in: FilePath) {
     ids.foreach { id =>
       val arch = backend.getArchive(id) getOrElse (throw GetError("archive not found: " + id))
