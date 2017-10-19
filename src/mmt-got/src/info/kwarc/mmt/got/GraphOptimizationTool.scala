@@ -4,15 +4,12 @@ import java.awt.event.{ActionEvent, ActionListener}
 import java.awt.{BorderLayout, ComponentOrientation, Container, Dimension, FlowLayout}
 import javax.swing._
 
-import info.kwarc.mmt.api
 import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.frontend.Extension
-import info.kwarc.mmt.api.modules.DeclaredTheory
+import info.kwarc.mmt.api.modules.{DeclaredTheory, View}
 import info.kwarc.mmt.api.objects.{Context, OMID, Term, Traverser}
-import info.kwarc.mmt.api.ontology.RelationalReader
 import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude}
 
-import scala.collection.mutable
 import scala.collection.mutable.{HashMap, HashSet, ListBuffer, StringBuilder}
 
 /**
@@ -33,7 +30,6 @@ class GraphOptimizationTool extends Extension {
     */
   override def start(args: List[String]): Unit = {
     val ret = super.start(args)
-    if (controller.extman.get(classOf[RelationalReader]).isEmpty) controller.extman.addExtension(new RelationalReader)
     ret
   }
 
@@ -43,10 +39,11 @@ class GraphOptimizationTool extends Extension {
     * @param replacementmap This is a map containing inclusion replacements for each theory
     * @return This is a list of all inclusions, including indirect
     */
-  def includes(theoryPath : MPath,
+  protected def includes(theoryPath : MPath,
                replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
               ) : HashSet[MPath] = {
     var ret = HashSet[MPath]()
+    ret ++= controller.getTheory(theoryPath).meta
     for (include <- directIncludes(theoryPath, replacementmap)) {
       ret += include
       ret ++= includes(include, replacementmap)
@@ -60,7 +57,7 @@ class GraphOptimizationTool extends Extension {
     * @param replacementmap This is a map containing inclusion replacements for each theory
     * @return This is a list of all direct inclusions
     */
-  def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : HashSet[MPath] = {
+  protected def directIncludes (theoryPath : MPath, replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : HashSet[MPath] = {
     var ret = HashSet[MPath]()
     val theory : DeclaredTheory = controller.get(theoryPath).asInstanceOf[DeclaredTheory]
     try {
@@ -95,22 +92,21 @@ class GraphOptimizationTool extends Extension {
     * @param theories This is an Iterable of theories to be sorted
     * @return This is a sorted List of theories
     */
-  def sortTheories (theories: Iterable[MPath]) : List[MPath] = {
+  protected def sortTheories (theories: Iterable[MPath], map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : List[MPath] = {
     /*set of already sorted theories for quick check*/
     var sorted = HashSet[MPath]()
     /*actually sorted list*/
-    var orderedTheories = mutable.ListBuffer[MPath]()
+    var orderedTheories = ListBuffer[MPath]()
     /*set of theories still to be sorted*/
     var unsorted = HashSet[MPath]()
     unsorted ++= theories
-    var todo : Int = controller.depstore.getInds(api.ontology.IsTheory).length
     /* insert until sorted */
     var change = true
     while (!unsorted.equals(HashSet.empty) && change) {
       change = false
       for (theoryPath <- unsorted) {
         /*cycle through unsorted until theory is found with all dependencies (in optimization scope) sorted*/
-        if (controller.depstore.querySet(theoryPath, api.ontology.Includes).asInstanceOf[HashSet[MPath]].intersect(unsorted).isEmpty) {
+        if (includes(theoryPath, map).intersect(unsorted).isEmpty) {
           orderedTheories += theoryPath
           unsorted -= theoryPath
           sorted += theoryPath
@@ -121,11 +117,27 @@ class GraphOptimizationTool extends Extension {
     return orderedTheories.toList
   }
 
-  def transitiveClosure(theories : Iterable[MPath]): HashSet[MPath] = {
+  protected def getDependencies(mpath : MPath) : List[MPath] = {
+    controller.get(mpath) match {
+      case dt : DeclaredTheory =>
+        dt.getIncludes ++ dt.getNamedStructures.map({struct => struct.from.toMPath})
+      case vw : View =>
+        vw.from.toMPath :: vw.to.toMPath :: Nil
+    }
+  }
+
+  protected def transitiveClosure(theories : HashSet[MPath]): HashSet[MPath] = {
     var closure = HashSet[MPath]()
-    for (theoryPath <- theories) {
-      closure += theoryPath
-      closure ++= controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]]
+    val archives = controller.backend.getArchives
+    for (archive <- archives) {
+      archive.allContent foreach {
+        path => if (theories.contains(path)) closure += path else for (dep <- getDependencies(path)) {
+          if (theories.contains(dep)) {
+            closure += path
+            //the scala train has no breaks
+          }
+        }
+      }
     }
     return closure
   }
@@ -133,7 +145,7 @@ class GraphOptimizationTool extends Extension {
   /**
     * This object is a traverser and searches a theory for all theories that are used
     */
-  object FindUsedTheories extends Traverser[HashSet[MPath]] {
+  protected object FindUsedTheories extends Traverser[HashSet[MPath]] {
     /**
       * Traverses over terms
       * @param t This is the current subterm
@@ -188,6 +200,20 @@ class GraphOptimizationTool extends Extension {
       }
       state
     }
+    def apply(vw: View): State = {
+      val state: State = HashSet[MPath]()
+      for (decl <- vw.getDeclarations) {
+        FindUsedTheories(decl, state)
+      }
+      state
+    }
+
+    def apply(se: StructuralElement): State = {
+      se match {
+        case vw : View => apply(vw)
+        case theory : DeclaredTheory => apply(theory)
+      }
+    }
   }
 
   /**
@@ -222,7 +248,7 @@ class GraphOptimizationTool extends Extension {
     */
   def findUnusedIncludeReplacements(theoryPath : MPath,
                                     replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]](),
-                                    futureUse : HashMap[MPath, HashSet[MPath]]
+                                    futureUse : HashMap[MPath, HashSet[MPath]] = HashMap[MPath, HashSet[MPath]]()
                                    ) : HashMap[Path, HashSet[MPath]] = {
     /* replacements will map the replacement suggestions for each optimization candidate
     *  theory inclusions that can be removed entirely will receive an empty set*/
@@ -289,16 +315,15 @@ class GraphOptimizationTool extends Extension {
     * @return This is a map containing the suggested replacements for all analyzed theories
     */
   def findReplacements(theories: Iterable[MPath], interactive : Boolean) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
+    var theorySet = HashSet[MPath]()
+    for (theoryPath <- theories) {
+      theorySet += theoryPath
+    }
     var replacements = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
     var never = HashSet[Path]()
     var no = HashMap[MPath, HashSet[Path]]()
     var futureUse = HashMap[MPath, HashSet[MPath]]()
-    var futureLight = sortTheories(transitiveClosure(theories))
-    var theorySet = HashSet[MPath]()
-
-    for (theoryPath <- theories) {
-      theorySet += theoryPath
-    }
+    var futureLight = sortTheories(transitiveClosure(theorySet), replacements)
 
     /*start interactive window*/
     if (interactive) {
@@ -310,7 +335,7 @@ class GraphOptimizationTool extends Extension {
       /*Search future lite code for used theories*/
       for (theoryPath <- futureLight.reverse) {
         try {
-          futureUse.put(theoryPath, FindUsedTheories(controller.getTheory(theoryPath)))
+          futureUse.put(theoryPath, FindUsedTheories(controller.get(theoryPath)))
         } catch {
           case _: Error => {
             if (printErrors) Console.err.println("Error: while looking into Future " + theoryPath + "(skipped)")
@@ -318,14 +343,14 @@ class GraphOptimizationTool extends Extension {
           }
         }
       }
-      for (theoryPath <- theories) {
-        for (futurePath <- controller.depstore.querySet(theoryPath, -api.ontology.Includes).asInstanceOf[HashSet[MPath]] --= theorySet) {
-          futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
+      for (futurePath <- futureLight) {
+        if (!theorySet.contains(futurePath)) for (theoryPath <- getDependencies(futurePath)) {
+          if (theorySet.contains(theoryPath)) futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
         }
       }
 
       /* find replacements */
-      for (theoryPath <- sortTheories(theories).reverse) {
+      for (theoryPath <- sortTheories(theories, replacements).reverse) {
         try {
           /* remove unused includes */
           if (!interactive) replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath, replacements, futureUse))
@@ -408,8 +433,15 @@ class GraphOptimizationTool extends Extension {
     * @return This is a map containing the suggested replacements for all analyzed theories
     */
   def findReplacements(interactive : Boolean = false) : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = {
-    val theories = controller.depstore.getInds(api.ontology.IsTheory).asInstanceOf[Iterator[MPath]].toIterable
-    return findReplacements(theories, interactive)
+    val theories = HashSet[MPath]()
+
+    controller.backend.getArchives.foreach(archive => archive.allContent.foreach(
+      mpath => controller.get(mpath) match {
+        case dt : DeclaredTheory => theories += mpath
+        case _ =>
+      }
+    ))
+    findReplacements(theories, interactive)
   }
 
   /**
@@ -431,7 +463,7 @@ class GraphOptimizationTool extends Extension {
     * @param map This is a map containing inclusion replacements for each theory
     * @return XML-String, or empty if mapping is
     */
-  def replaceTheoryToXML(theoryPath : MPath, map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
+  protected def replaceTheoryToXML(theoryPath : MPath, map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
     var sb : StringBuilder = new StringBuilder()
     if (map.get(theoryPath).get.keySet.isEmpty) return ""
     sb ++= "<theory MPath=" ++= theoryPath.toString ++= ">\n"
@@ -445,7 +477,7 @@ class GraphOptimizationTool extends Extension {
     * @param map This is a map containing inclusion replacements for one theory
     * @return XML-String
     */
-  def replaceInclusionToXML(map : HashMap[Path, HashSet[MPath]]) : String = {
+  protected def replaceInclusionToXML(map : HashMap[Path, HashSet[MPath]]) : String = {
     var sb : StringBuilder = new StringBuilder()
     for (path <- map.keySet) {
       if (map.get(path).get.isEmpty)
@@ -459,7 +491,7 @@ class GraphOptimizationTool extends Extension {
     return sb.toString
   }
 
-  class Dialogue(parent : GraphOptimizationTool) extends JFrame("Style") {
+  protected class Dialogue(parent : GraphOptimizationTool) extends JFrame("Styler") {
     val got = parent
     /*panels*/
     val suggestionPanel = new JScrollPane()
@@ -525,8 +557,6 @@ class GraphOptimizationTool extends Extension {
 
       //Left to right component orientation is selected by default
       controls.setComponentOrientation(ComponentOrientation.LEFT_TO_RIGHT)
-
-      //TODO add button actions
 
       //add panels
       panel.add(suggestionPanel, BorderLayout.CENTER)
