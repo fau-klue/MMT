@@ -8,7 +8,7 @@ import info.kwarc.mmt.api._
 import info.kwarc.mmt.api.frontend.Extension
 import info.kwarc.mmt.api.modules.{DeclaredTheory, View}
 import info.kwarc.mmt.api.objects.{Context, OMID, Term, Traverser}
-import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude}
+import info.kwarc.mmt.api.symbols.{Constant, Declaration, PlainInclude, Structure}
 
 import scala.collection.mutable.{HashMap, HashSet, ListBuffer, StringBuilder}
 
@@ -19,6 +19,7 @@ class GraphOptimizationTool extends Extension {
   var printErrors = true      //print Errors on error stream, otherwise not at all
   var predictFuture = true    //declarations used in future lite code are counted as used by optimization
   var ignoreUnion = true      //Unions are not optimized if true
+  var protectStructures = true //protect structures by never optimizing their dependencies
 
   /*variable for interactive mode*/
   var command : String = ""
@@ -43,7 +44,7 @@ class GraphOptimizationTool extends Extension {
                replacementmap : HashMap[MPath, HashMap[Path, HashSet[MPath]]] = HashMap[MPath, HashMap[Path, HashSet[MPath]]]()
               ) : HashSet[MPath] = {
     var ret = HashSet[MPath]()
-    ret ++= controller.getTheory(theoryPath).meta
+    ret ++= (controller.getTheory(theoryPath).meta match {case Some(meta)  => includes(meta, replacementmap) case _ => None}) ++= controller.getTheory(theoryPath).meta
     for (include <- directIncludes(theoryPath, replacementmap)) {
       ret += include
       ret ++= includes(include, replacementmap)
@@ -117,12 +118,16 @@ class GraphOptimizationTool extends Extension {
     return orderedTheories.toList
   }
 
-  protected def getDependencies(mpath : MPath) : List[MPath] = {
+  def getDependencies(mpath : MPath) : HashSet[MPath] = {
     controller.get(mpath) match {
       case dt : DeclaredTheory =>
-        dt.getIncludes ++ dt.getNamedStructures.map({struct => struct.from.toMPath})
+        var res : HashSet[MPath] = HashSet[MPath]()
+        res ++= includes(mpath)
+        res ++= dt.getNamedStructures.map({ struct => struct.from.toMPath})
+        dt.getNamedStructures.foreach({ struct => res ++= getDependencies(struct.from.toMPath)})
+        res
       case vw : View =>
-        vw.from.toMPath :: vw.to.toMPath :: Nil
+        HashSet[MPath]() += vw.from.toMPath += vw.to.toMPath
     }
   }
 
@@ -145,7 +150,7 @@ class GraphOptimizationTool extends Extension {
   /**
     * This object is a traverser and searches a theory for all theories that are used
     */
-  protected object FindUsedTheories extends Traverser[HashSet[MPath]] {
+  object FindUsedTheories extends Traverser[HashSet[MPath]] {
     /**
       * Traverses over terms
       * @param t This is the current subterm
@@ -281,16 +286,16 @@ class GraphOptimizationTool extends Extension {
       /* find transitive closure of includes of used directIncludes*/
       var usedDirectIncludes = HashSet[MPath]()
       usedDirectIncludes ++= directIncludes(theoryPath, replacementmap)
+      usedDirectIncludes = usedDirectIncludes.intersect(usedTheories)
       controller.get(optimizationCandidate).asInstanceOf[DeclaredTheory].meta match {
         case Some(p : MPath) => usedDirectIncludes += p
         case None =>
       }
-      usedDirectIncludes = usedDirectIncludes.intersect(usedTheories)
 
       var transitiveUsedIncludes = HashSet[MPath]()
       for (usedDirectInclude <- usedDirectIncludes) {
         transitiveUsedIncludes += usedDirectInclude
-        transitiveUsedIncludes ++= controller.get(usedDirectInclude).asInstanceOf[DeclaredTheory].getIncludes
+        transitiveUsedIncludes ++= includes(usedDirectInclude)
       }
 
       if (candidateIncludes.subsetOf(transitiveUsedIncludes)) {
@@ -300,7 +305,7 @@ class GraphOptimizationTool extends Extension {
         var replacementIncludes = (HashSet[MPath]() ++=candidateIncludes)--=transitiveUsedIncludes
         var transitiveReplacementIncludes = HashSet[MPath]()
         for (replacementInclude <- replacementIncludes) {
-          transitiveReplacementIncludes ++= controller.get(replacementInclude).asInstanceOf[DeclaredTheory].getIncludes
+          transitiveReplacementIncludes ++= includes(replacementInclude)
         }
         replacementIncludes --= transitiveReplacementIncludes
         replacements.put(optimizationCandidate, replacementIncludes)
@@ -324,6 +329,18 @@ class GraphOptimizationTool extends Extension {
     var no = HashMap[MPath, HashSet[Path]]()
     var futureUse = HashMap[MPath, HashSet[MPath]]()
     var futureLight = sortTheories(transitiveClosure(theorySet), replacements)
+    var futureStructure = HashSet[MPath]()
+    if (protectStructures) for (future <- futureLight) {
+      controller.get(future) match {
+        case dt : DeclaredTheory =>
+          dt.getNamedStructures.foreach(
+            {
+              structure => futureStructure += structure.from.toMPath
+            }
+          )
+        case _ =>
+      }
+    }
 
     /*start interactive window*/
     if (interactive) {
@@ -345,13 +362,16 @@ class GraphOptimizationTool extends Extension {
       }
       for (futurePath <- futureLight) {
         if (!theorySet.contains(futurePath)) for (theoryPath <- getDependencies(futurePath)) {
-          if (theorySet.contains(theoryPath)) futureUse.get(theoryPath).get ++= futureUse.get(futurePath).get
+          if (theorySet.contains(theoryPath)) futureUse.get(theoryPath).get ++= includes(theoryPath).intersect(futureUse.get(futurePath).get)
         }
       }
 
       /* find replacements */
       for (theoryPath <- sortTheories(theories, replacements).reverse) {
-        try {
+        if (protectStructures && futureStructure.contains(theoryPath)) {
+          if (replacements.get(theoryPath).isEmpty) replacements.put(theoryPath, HashMap[Path, HashSet[MPath]]())
+        }
+        else try {
           /* remove unused includes */
           if (!interactive) replacements.put(theoryPath, findUnusedIncludeReplacements(theoryPath, replacements, futureUse))
           else {
@@ -414,7 +434,7 @@ class GraphOptimizationTool extends Extension {
           }
         }
         if (predictFuture)
-          for (include <- includes(theoryPath).intersect(theorySet)) {
+          for (include <- getDependencies(theoryPath).intersect(theorySet)) {
             futureUse.get(include).get
             futureUse.get(theoryPath).get
             futureUse.get(include).get ++= futureUse.get(theoryPath).get
@@ -466,7 +486,7 @@ class GraphOptimizationTool extends Extension {
   protected def replaceTheoryToXML(theoryPath : MPath, map : HashMap[MPath, HashMap[Path, HashSet[MPath]]]) : String = {
     var sb : StringBuilder = new StringBuilder()
     if (map.get(theoryPath).get.keySet.isEmpty) return ""
-    sb ++= "<theory MPath=" ++= theoryPath.toString ++= ">\n"
+    sb ++= "<theory MPath=" ++= "\"" ++= theoryPath.toString ++= "\"" ++= ">\n"
     sb ++= replaceInclusionToXML(map.get(theoryPath).get)
     sb ++= "</theory>\n"
     return sb.toString
@@ -481,11 +501,11 @@ class GraphOptimizationTool extends Extension {
     var sb : StringBuilder = new StringBuilder()
     for (path <- map.keySet) {
       if (map.get(path).get.isEmpty)
-        sb ++= "\t<removeInclusion Path=" ++= path.toString ++= ">\n"
+        sb ++= "\t<removeInclusion Path=" ++= "\"" ++= path.toString ++= "\"" ++= ">\n"
       else {
-        sb ++= "\t<replaceInclusion Path=" ++= path.toString ++= ">\n"
-        for (theoryPath <- map.get(path).get) sb ++= "\t\t<replacement MPath=" ++= theoryPath.toString ++= ">\n"
-        sb ++= "\t<replaceInclusion>\n"
+        sb ++= "\t<replaceInclusion Path=" ++= "\"" ++= path.toString ++= "\"" ++= ">\n"
+        for (theoryPath <- map.get(path).get) sb ++= "\t\t<replacement MPath=" ++= "\"" ++= theoryPath.toString ++= "\"/" ++= ">\n"
+        sb ++= "\t</replaceInclusion>\n"
       }
     }
     return sb.toString
