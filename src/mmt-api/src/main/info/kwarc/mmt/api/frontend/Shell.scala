@@ -1,9 +1,8 @@
 package info.kwarc.mmt.api.frontend
 
 import info.kwarc.mmt.api._
-import info.kwarc.mmt.api.frontend.actions.{ActionResultError, ExecFile, HelpAction, MBT}
+import actions._
 import info.kwarc.mmt.api.archives.{BuildManager, BuildQueue}
-import actions.HelpAction
 import utils._
 
 import scala.util.Try
@@ -93,69 +92,10 @@ class Shell extends StandardIOHelper {
 
   /** main method without exception handling */
   private def mainRaw(a: Array[String]) {
-     val deployFolder = runStyle match {
-       case rs: MMTSystem.DeployRunStyle => Some(rs.deploy)
-       case _ => None
-     }
-     val defRc = deployFolder.map(_/"mmtrc")
-     // load additional configurations (default config is loaded by Controller.init)
-     val cfgLocations: List[File] = defRc.toList ::: List(MMTSystem.userConfigFile)
-     cfgLocations foreach loadConfig
-     // execute startup arguments
-     deployFolder foreach {f =>
-        loadMsl(f / "startup.msl")
-     }
-
-     // guess if MMT is run for the first time and offer changing into setup
-     if (a.isEmpty && defRc.map(!_.exists).getOrElse(true)) {
-       println("\n\n\n\n\nIt looks like you might be running MMT for the first time.\n" +
-               "Do you want me to run setup (y/n)?"
-       )
-       if (getYesNo(true)) {
-         deferToExtension("setup", Nil)
-         return
-       } else {
-         println("\n\n")
-         defRc.foreach {rc =>
-           println("If you want to avoid this prompt in the future, create an empty configuration file at " + rc + "\n" +
-                   "Do you want me to create one now (y/n)?"
-           )
-           if (getYesNo(false)) {
-             File.write(rc, "// add configuration options here\n")
-           }
-         }
-       }
-     }
-
-     // check for "mmt :command ARGS" and delegate to ShellExtensions
-     a.toList match {
-       case ccom::args if ccom.startsWith(":") =>
-          val com = ccom.substring(1)
-          deferToExtension(com, args)
-          return
-       case _ =>
-    }
-
     // parse command line arguments
     val args = ShellArguments.parse(a.toList).getOrElse {
       controller.handle(HelpAction("usage_short"))
       sys.exit(Shell.EXIT_CODE_FAIL_ARGUMENT)
-    }
-
-    // display some help text
-    if (args.help) {
-      val commands = args.commands
-        if(commands.isEmpty)
-          controller.handle(HelpAction("usage"))
-        else
-          commands.foreach(t => controller.handle(HelpAction(t)))
-      return
-    }
-
-    // display some about text
-    if (args.about) {
-      controller.handle(HelpAction("version"))
-      return
     }
 
     // configure logging
@@ -166,17 +106,87 @@ class Shell extends StandardIOHelper {
       controller.report.groups += "debug"
     }
 
+    // show some help if --help was provided
+    if (args.help) {
+      val commands = args.commands
+      if(commands.isEmpty)
+        controller.handle(HelpAction("usage"))
+      else
+        commands.foreach(t => controller.handle(HelpAction(t)))
+      return
+    }
+
+    // about && version information
+    if (args.about) {
+      controller.handle(MMTVersion)
+      return
+    }
+
+    // find the deploy folder if any
+    val deployFolder = runStyle match {
+     case rs: MMTSystem.DeployRunStyle => Some(rs.deploy)
+     case _ => None
+    }
+    val mmtrc = deployFolder.map(_/"mmtrc")
+
+    // load mmtrc files (if any)
+    val cfgLocations: List[File] = mmtrc.toList ::: List(MMTSystem.userConfigFile)
+    cfgLocations foreach { f =>
+      controller.report("debug", s"loading config file $f")
+      loadConfig(f)
+    }
+
+    // run msl files (if any)
+    deployFolder foreach {f =>
+      controller.report("debug", s"loading msl file ${f / "startup.msl" }")
+      loadMsl(f / "startup.msl")
+    }
+
+     // guess if MMT is run for the first time and offer changing into setup
+     if (a.isEmpty && mmtrc.map(!_.exists).getOrElse(true)) {
+       println("\n\n\n\n\nIt looks like you might be running MMT for the first time.\n" +
+         "Do you want me to run setup (y/n)?"
+       )
+       if (getYesNo(true)) {
+         deferToExtension("setup", Nil)
+         return
+       } else {
+         println("\n\n")
+         mmtrc.foreach { rc =>
+           println("If you want to avoid this prompt in the future, create an empty configuration file at " + rc + "\n" +
+             "Do you want me to create one now (y/n)?"
+           )
+           if (getYesNo(false)) {
+             File.write(rc, "// add configuration options here\n")
+           }
+         }
+       }
+     }
+
     // load additional config files as given by arguments
     args.cfgFiles.map(File(_)) foreach loadConfig
 
+    // load the Q (if any)
     if (args.useQueue) {
-       controller.extman.addExtension(new BuildQueue)
+      controller.extman.addExtension(new BuildQueue)
+    }
+
+
+    // check for "mmt :command ARGS" and delegate to ShellExtensions
+    a.toList match {
+      case ccom::args if ccom.startsWith(":") =>
+        val com = ccom.substring(1)
+        deferToExtension(com, args)
+        return
+      case _ =>
     }
 
     // run -file and -mbt commands
     val mmtCommands = args.mmtFiles map {s => ExecFile(File(s), None)}
     val mbtCommands = args.scalaFiles map {s => MBT(File(s))}
     (mmtCommands ::: mbtCommands) foreach {a => controller.handle(a)}
+
+
     // run the remaining commands
     args.commands.mkString(" ").split(" ; ") foreach {l => controller.handleLine(l, showLog = false)}
 
